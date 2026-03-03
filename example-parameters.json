@@ -1,0 +1,50 @@
+[
+  {
+    "ParameterKey": "CodeS3Bucket",
+    "ParameterValue": "YOUR-BUCKET-NAME"
+  },
+  {
+    "ParameterKey": "CodeS3Key",
+    "ParameterValue": "lambda-code/populate_NLB_TG_with_RDS_RR.zip"
+  },
+  {
+    "ParameterKey": "RDSReplicaDNSNames",
+    "ParameterValue": "replica1.abc123.us-east-1.rds.amazonaws.com,replica2.abc123.us-east-1.rds.amazonaws.com"
+  },
+  {
+    "ParameterKey": "NLBTargetGroupARN",
+    "ParameterValue": "arn:aws:elasticloadbalancing:REGION:ACCOUNT-ID:targetgroup/NAME/ID"
+  },
+  {
+    "ParameterKey": "S3BucketName",
+    "ParameterValue": "YOUR-STATE-BUCKET-NAME"
+  },
+  {
+    "ParameterKey": "RDSListenerPort",
+    "ParameterValue": "3306"
+  },
+  {
+    "ParameterKey": "StatePrefix",
+    "ParameterValue": "rds-cluster-read-replicas"
+  },
+  {
+    "ParameterKey": "CloudWatchLogGroup",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "MAXDNSLookupPerInvocation",
+    "ParameterValue": "5"
+  },
+  {
+    "ParameterKey": "InvocationBeforeDeregistration",
+    "ParameterValue": "3"
+  },
+  {
+    "ParameterKey": "SameVPC",
+    "ParameterValue": "True"
+  },
+  {
+    "ParameterKey": "Region",
+    "ParameterValue": "us-west-2"
+  }
+]
