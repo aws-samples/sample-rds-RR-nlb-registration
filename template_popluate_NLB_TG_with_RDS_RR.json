@@ -52,101 +52,10 @@
       "Default": 3,
       "Description": "Please specify how many invocations are needed before an IP is deregistered"
     },
-    "SameVPC": {
-      "Type": "String",
-      "Default": "True",
-      "AllowedValues": [
-        "True",
-        "False"
-      ],
-      "Description": "Please specify if your Network Load Balancer and the RDS read replicas are in the same VPC. By default, it is set to True"
-    },
     "Region": {
       "Type": "String",
       "Default": "us-west-2",
-      "AllowedValues": [
-        "us-east-1",
-        "us-east-2",
-        "us-west-1",
-        "us-west-2",
-        "eu-west-1",
-        "eu-west-2",
-        "eu-west-3",
-        "eu-central-1",
-        "ap-southeast-1",
-        "ap-southeast-2",
-        "ap-northeast-1",
-        "ap-northeast-1",
-        "ap-northeast-2",
-        "sa-east-1",
-        "ap-south-1",
-        "ca-central-1"
-      ],
       "Description": "Please specify the region where you want to create your Lambda function"
-    }
-  },
-  "Mappings": {
-    "RegionMap": {
-      "ap-northeast-1": {
-        "Bucket": "exampleloadbalancer-ap-northeast-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "ap-northeast-2": {
-        "Bucket": "exampleloadbalancer-ap-northeast-2",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "ap-south-1": {
-        "Bucket": "exampleloadbalancer-ap-south-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "ap-southeast-1": {
-        "Bucket": "exampleloadbalancer-ap-southeast-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "ap-southeast-2": {
-        "Bucket": "exampleloadbalancer-ap-southeast-2",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "ca-central-1": {
-        "Bucket": "exampleloadbalancer-ca-central-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "eu-central-1": {
-        "Bucket": "exampleloadbalancer-eu-central-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "eu-west-1": {
-        "Bucket": "exampleloadbalancer-eu-west-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "eu-west-2": {
-        "Bucket": "exampleloadbalancer-eu-west-2",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "sa-east-1": {
-        "Bucket": "exampleloadbalancer-sa-east-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "us-east-1": {
-        "Bucket": "exampleloadbalancer-us-east-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "us-east-2": {
-        "Bucket": "exampleloadbalancer-us-east-2",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "us-west-1": {
-        "Bucket": "exampleloadbalancer-us-west-1",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "us-west-2": {
-        "Bucket": "exampleloadbalancer-us-west-2",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      },
-      "eu-west-3": {
-        "Bucket": "exampleloadbalancer-eu-west-3",
-        "Key": "blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB_python3.zip"
-      }
     }
   },
   "Resources": {
@@ -197,9 +106,6 @@
             },
             "INVOCATIONS_BEFORE_DEREGISTRATION": {
               "Ref": "InvocationBeforeDeregistration"
-            },
-            "SAME_VPC": {
-              "Ref": "SameVPC"
             }
           }
         }
