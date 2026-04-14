@@ -169,59 +169,63 @@
         },
         "Path": "/",
         "ManagedPolicyArns": [
-          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-        ],
-        "Policies": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
           {
-            "PolicyName": "Lambda-RDSReadReplicaAsTarget",
-            "PolicyDocument": {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Sid": "LambdaLogging",
-                  "Effect": "Allow",
-                  "Action": [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents"
-                  ],
-                  "Resource": [
-                    "arn:aws:logs:*:*:*"
-                  ]
-                },
-                {
-                  "Sid": "S3",
-                  "Action": [
-                    "s3:GetObject",
-                    "s3:PutObject",
-                    "s3:ListBucket"
-                  ],
-                  "Effect": "Allow",
-                  "Resource": [
-                    {
-                      "Fn::Sub": "arn:aws:s3:::${S3BucketName}"
-                    },
-                    {
-                      "Fn::Sub": "arn:aws:s3:::${S3BucketName}/*"
-                    }
-                  ]
-                },
-                {
-                  "Sid": "ELB",
-                  "Action": [
-                    "elasticloadbalancing:DescribeTargetHealth",
-                    "elasticloadbalancing:RegisterTargets",
-                    "elasticloadbalancing:DeregisterTargets"
-                  ],
-                  "Effect": "Allow",
-                  "Resource": {
-                    "Ref": "NLBTargetGroupARN"
-                  }
-                }
-              ]
-            }
+            "Ref": "LambdaRDSReadReplicaPolicy"
           }
         ]
+      }
+    },
+    "LambdaRDSReadReplicaPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Description": "Policy for Lambda to manage RDS read replica NLB registration",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "LambdaLogging",
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": [
+                "arn:aws:logs:*:*:*"
+              ]
+            },
+            {
+              "Sid": "S3",
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:s3:::${S3BucketName}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${S3BucketName}/*"
+                }
+              ]
+            },
+            {
+              "Sid": "ELB",
+              "Effect": "Allow",
+              "Action": [
+                "elasticloadbalancing:DescribeTargetHealth",
+                "elasticloadbalancing:RegisterTargets",
+                "elasticloadbalancing:DeregisterTargets"
+              ],
+              "Resource": {
+                "Ref": "NLBTargetGroupARN"
+              }
+            }
+          ]
+        }
       }
     }
   }
