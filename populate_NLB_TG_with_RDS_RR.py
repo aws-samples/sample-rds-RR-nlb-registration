@@ -59,16 +59,14 @@ def get_ip_from_dns():
         f"RDS replica IPs from DNS lookup: {ip_from_dns_set}. Total IP count: {len(ip_from_dns_set)}"
     )
 
-    # Check if there are no RDS replica IPs in the DNS. If so, exit from the current Lambda invocation
-    try:
-        error_message = (
-            f"No IP found from DNS for RDS replicas - {LambdaEnv.RDS_REPLICA_DNS_NAMES}. "
-            f"The Lambda function will not proceed with making changes to the NLB target group - {LambdaEnv.NLB_TG_ARN}"
+    if not ip_from_dns_set:
+        logger.error(
+            f"No IP found from DNS for RDS replicas - {LambdaEnv.RDS_REPLICA_DNS_NAMES}"
+            f"Skipping target group changes"
         )
-        precondition(ip_from_dns_set, error_message)
-        return ip_from_dns_set
-    except ValueError:
-        sys.exit(1)
+        return None 
+
+    return ip_from_dns_set
 
 
 def get_ip_from_previous_invocation(aws_service):
@@ -156,6 +154,9 @@ def lambda_handler(event, context):
     # Get IP from DNS
     logger.info("\n>>>>Step-1: Get IPs from DNS<<<<")
     ip_from_dns_set = get_ip_from_dns()
+
+    if ip_from_dns_set is None:
+        return None 
 
     # ---- Step 2 -----
     # Get IP that are currently registered with the NLB target group and update CloudWatch metric

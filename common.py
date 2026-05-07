@@ -28,10 +28,11 @@ def precondition(pre_condition, error_message):
 
 def dns_lookup(domain_name, record_type):
     """
-    Get DNS lookup results using VPC DNS resolver.
+    Get DNS lookup results using the system default DNS resolver.
     
-    Uses the system default DNS resolver (VPC DNS at 169.254.169.253 in Lambda VPC).
-    This is appropriate for resolving RDS private DNS names within the VPC.
+    Uses the default resolver provided by the Lambda runtime. RDS DNS names
+    (e.g., replica1.abc123.us-east-1.rds.amazonaws.com) are publicly resolvable
+    and do not require VPC placement.
     
     Raises dns.resolver exceptions on failure, allowing caller to implement retry logic.
     
@@ -42,11 +43,14 @@ def dns_lookup(domain_name, record_type):
     """
     my_resolver = dns.resolver.Resolver()
     my_resolver.rotate = True  # Randomize order of results for load distribution
+    my_resolver.timeout = DNS_RESOLVER_TIMEOUT
+    my_resolver.lifetime = DNS_RESOLVER_LIFETIME
+
     
     logger.info(f"Resolving query {domain_name} (type: {record_type})")
     
     # Let exceptions propagate to caller for retry logic
-    lookup_answers = my_resolver.query(domain_name, record_type)
+    lookup_answers = my_resolver.resolve(domain_name, record_type)
     lookup_result_list = [str(answer) for answer in lookup_answers]
     
     logger.info(f"DNS lookup returned {len(lookup_result_list)} result(s): {lookup_result_list}")
@@ -106,8 +110,8 @@ def get_rds_replica_ips_from_dns(dns_name_list, record_type, max_lookup_per_invo
     """
     Resolve multiple RDS replica DNS names and aggregate all IPs.
     
-    Uses VPC DNS resolver directly (not authoritative name servers) since RDS replicas
-    use private DNS names that are only resolvable within the VPC.
+    RDS replica DNS names are publicly resolvable (managed by Route 53) and resolve
+    to private IPs. No VPC placement is required for DNS resolution.
 
     :param dns_name_list: List of RDS replica DNS names
     :param record_type: DNS record type (typically "A")
@@ -118,7 +122,7 @@ def get_rds_replica_ips_from_dns(dns_name_list, record_type, max_lookup_per_invo
 
     for dns_name in dns_name_list:
         try:
-            logger.info(f"Resolving RDS DNS name using VPC DNS resolver: {dns_name}")
+            logger.info(f"Resolving RDS DNS name: {dns_name}")
             ips = dns_lookup_with_retry(dns_name, record_type, max_lookup_per_invocation)
             if ips:
                 logger.info(f"Resolved {len(ips)} IP(s) for {dns_name}: {ips}")
