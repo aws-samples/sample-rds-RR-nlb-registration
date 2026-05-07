@@ -21,7 +21,12 @@
 
 Note : In your CLI make sure you are in correct folder. 
 
-1. Copy the python code to S3 bucket
+[Optional] If cloned the repository then create the ZIP file. 
+```bash
+zip -r populate_NLB_TG_with_RDS_RR.zip *.py dns/dnspython-2.6.1.dist-info
+```
+
+1. Copy the ZIP code to S3 bucket
 
 ```bash
 aws s3 cp populate_NLB_TG_with_RDS_RR.zip \
