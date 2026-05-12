@@ -1,6 +1,8 @@
 # Deployment Configuration (contains sensitive parameters)
 deploy-parameters.json
-
+code_review/code_quality_review.md
+code_review/security_review.md
+code_review/system_design_review.md
 # Lambda Deployment Packages
 *.zip
 

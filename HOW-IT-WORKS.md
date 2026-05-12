@@ -1,11 +1,3 @@
-# How the RDS Read Replica NLB Registration Solution Works
-
-## The Problem
-
-Amazon RDS (non-Aurora) read replicas each get their own DNS endpoint, but there's no built-in way to load balance read traffic across multiple replicas through a single endpoint. DNS names also resolve to IP addresses that can change over time — during failovers, maintenance windows, or when RDS moves instances across hosts.
-
-Network Load Balancers use IP-based target groups, so someone (or something) needs to keep those IPs in sync with whatever the replica DNS names currently resolve to. That's what this solution automates.
-
 ## Architecture Overview
 
 ```

@@ -14,17 +14,14 @@
     },
     "RDSReplicaDNSNames": {
       "Type": "String",
-      "Default": "",
       "Description": "Enter comma-separated DNS names of your RDS read replicas. e.g. replica1.abc123.us-east-1.rds.amazonaws.com, replica2.abc123.us-east-1.rds.amazonaws.com"
     },
     "NLBTargetGroupARN": {
       "Type": "String",
-      "Default": "",
       "Description": "Enter the target group ARN which you want the RDS read replicas to be registered to"
     },
     "S3BucketName": {
       "Type": "String",
-      "Default": "",
       "Description": "Enter the S3 Bucket name that you want to store RDS read replica IP addresses and state"
     },
     "RDSListenerPort": {
@@ -56,6 +53,20 @@
       "Type": "String",
       "Default": "us-west-2",
       "Description": "Please specify the region where you want to create your Lambda function"
+    }
+  },
+  "Conditions": {
+    "HasCloudWatchLogGroup": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "CloudWatchLogGroup"
+            },
+            ""
+          ]
+        }
+      ]
     }
   },
   "Resources": {
@@ -169,7 +180,6 @@
         },
         "Path": "/",
         "ManagedPolicyArns": [
-          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
           {
             "Ref": "LambdaRDSReadReplicaPolicy"
           }
@@ -192,7 +202,17 @@
                 "logs:PutLogEvents"
               ],
               "Resource": [
-                "arn:aws:logs:*:*:*"
+                {
+                  "Fn::If": [
+                    "HasCloudWatchLogGroup",
+                    {
+                      "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudWatchLogGroup}:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/RDS-NLB-Registration:*"
+                    }
+                  ]
+                }
               ]
             },
             {

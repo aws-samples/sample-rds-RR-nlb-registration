@@ -29,7 +29,7 @@
   },
   {
     "ParameterKey": "CloudWatchLogGroup",
-    "ParameterValue": ""
+    "ParameterValue": "RDS-NLB-Registration"
   },
   {
     "ParameterKey": "MAXDNSLookupPerInvocation",

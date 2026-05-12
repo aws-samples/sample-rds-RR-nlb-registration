@@ -13,6 +13,7 @@ Every minute, a Lambda function:
 - Registers newly discovered IPs with your NLB target group
 - Safely deregisters IPs that are no longer active (after a configurable grace period)
 - Tracks state in S3 to maintain consistency across invocations
+- See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for additional details
 
 ## How It Helps
 

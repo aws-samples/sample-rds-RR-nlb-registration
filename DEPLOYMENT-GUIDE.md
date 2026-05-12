@@ -8,6 +8,12 @@
 1. You must have NLB and a target group. 
 2. S3 bucket. In this example two S3 bucket are used for clarity. You can optimise by having one and using prefix to distinguish. Purpose of this S3 bucket is to store the lambda code and store the lambda persistance file. Note Lmabda code is used once when deploying. The persistance file are used throughout the lifecycle. 
 
+**Note:** 
+1. Make sure Block Public Access enabled.
+2. Enable default encryption (SSE-S3 or SSE-KMS)
+3. Enabling versioning is recommended.
+
+
 ## Populate the deploy-parameters.json with actual values
 	1. CodeS3Bucket : Provide S3 bucket name. Used to store lambda code. 
 	2. CodeS3Key (optional) : Specify the S3 path key.
