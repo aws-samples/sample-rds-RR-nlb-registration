@@ -1,6 +1,9 @@
 import pytest
 from unittest.mock import patch, MagicMock, call
 
+import common as common_util
+from constant import LambdaEnv
+
 MOCKED_DNS_NAME = "mocked.domain.name.com"
 MOCKED_DNS_RECORD_TYPE = "A"
 MOCKED_DNS_SERVERS = ["1.1.1.1", "2.2.2.2"]
@@ -8,8 +11,6 @@ MOCKED_DNS_SERVERS = ["1.1.1.1", "2.2.2.2"]
 
 @patch("common.logger", return_value=MagicMock())
 def test_precondition(mocked_logger, env_setup):
-    import common as common_util
-
     # Case 1: When pre-condition is True. No exception should be raised
     pre_condition = True
     mocked_error_messages = "mocked_error_messages"
@@ -25,8 +26,6 @@ def test_precondition(mocked_logger, env_setup):
 
 @patch("common.logger", return_value=MagicMock())
 def test_get_pending_registration_ip_set(mocked_logger):
-    import common as common_util
-
     # Return the IPs that are in DNS but not in the target group
     ip_from_dns_set = {"1.1.1.1", "2.2.2.2", "3.3.3.3"}
     ip_from_target_group_set = {"1.1.1.1"}
@@ -47,8 +46,6 @@ def test_get_invocation_count_per_pending_deregistration_ip_without_pending(
     # Pending deregistration IPs (Without considering INVOCATIONS_BEFORE_DEREGISTRATION) are:
     # 1. In the active IP list from the previous invocation but no longer in the DNS
     # 2. Currently registered but no longer in the DNS
-
-    import common as common_util
 
     ip_from_dns_set = {"1.1.1.1", "2.2.2.2", "3.3.3.3"}
     ip_from_target_group_set = {"1.1.1.1", "5.5.5.5"}
@@ -75,8 +72,6 @@ def test_get_invocation_count_per_pending_deregistration_ip_with_pending(mocked_
     # 1. In the active IP list from the previous invocation but no longer in the DNS
     # 2. Currently registered but no longer in the DNS
 
-    import common as common_util
-
     ip_from_dns_set = {"1.1.1.1", "2.2.2.2", "3.3.3.3"}
     ip_from_target_group_set = {"1.1.1.1", "5.5.5.5"}
     active_ip_set_from_previous_invocation = {"2.2.2.2", "6.6.6.6"}
@@ -98,8 +93,6 @@ def test_get_invocation_count_per_pending_deregistration_ip_with_pending(mocked_
 
 @patch("common.logger", return_value=MagicMock())
 def test_get_pending_deregistration_ip_set(mocked_logger):
-    import common as common_util
-
     invocation_count_per_pending_deregistration_ip = {
         "1.1.1.1": 1,
         "2.2.2.2": 2,
@@ -113,30 +106,32 @@ def test_get_pending_deregistration_ip_set(mocked_logger):
     assert actual_result == expected_result
 
 
-def test_get_elb_ip_target_from_ip_list_same_vpc():
-    import common as common_util
-
+def test_get_elb_ip_target_from_ip_list_same_vpc(env_setup):
     ip_list = ["1.1.1.1", "2.2.2.2"]
-    elb_listener = "80"
+    elb_listener = 3306
     actual_result = common_util.get_elb_ip_target_from_ip_list(ip_list, elb_listener)
     expected_result = [
-        {"Id": "1.1.1.1", "Port": "80", },
-        {"Id": "2.2.2.2", "Port": "80", },
+        {"Id": "1.1.1.1", "Port": 3306, },
+        {"Id": "2.2.2.2", "Port": 3306, },
     ]
     assert actual_result == expected_result
 
 
-def test_get_elb_ip_target_from_ip_list_different_vpc():
-    import common as common_util
-
+def test_get_elb_ip_target_from_ip_list_different_vpc(env_setup):
     ip_list = ["1.1.1.1", "2.2.2.2"]
-    elb_listener = "80"
-    with patch("common.LambdaEnv.SAME_VPC", False):
+    elb_listener = 3306
+    # Ensure initialized, then override the cached value
+    LambdaEnv._ensure_initialized()
+    original_value = LambdaEnv._cache["SAME_VPC"]
+    LambdaEnv._cache["SAME_VPC"] = False
+    try:
         actual_result = common_util.get_elb_ip_target_from_ip_list(
             ip_list, elb_listener
         )
         expected_result = [
-            {"Id": "1.1.1.1", "Port": "80", "AvailabilityZone": "all"},
-            {"Id": "2.2.2.2", "Port": "80", "AvailabilityZone": "all"},
+            {"Id": "1.1.1.1", "Port": 3306, "AvailabilityZone": "all"},
+            {"Id": "2.2.2.2", "Port": 3306, "AvailabilityZone": "all"},
         ]
         assert actual_result == expected_result
+    finally:
+        LambdaEnv._cache["SAME_VPC"] = original_value

@@ -1,17 +1,3 @@
-import json
-from constant import LambdaEnv
-import sys
-from aws_services import AwsServices
-from common import (
-    logger,
-    precondition,
-    get_rds_replica_ips_from_dns,
-    get_pending_registration_ip_set,
-    get_invocation_count_per_pending_deregistration_ip,
-    get_pending_deregistration_ip_set,
-    get_elb_ip_target_from_ip_list,
-)
-
 """
 This function checks the DNS records for RDS read replica IP addresses.
 It populates a Network Load Balancer's target group with RDS read replica IP addresses
@@ -29,13 +15,30 @@ Configure these environment variables in your Lambda environment (CloudFormation
 5. MAX_LOOKUP_PER_INVOCATION - The max times of DNS lookup per invocation
 6. INVOCATIONS_BEFORE_DEREGISTRATION - The number of required invocations before an IP is deregistered
 7. STATE_PREFIX - S3 key prefix for state files
-8. CLOUDWATCH_LOG_GROUP - CloudWatch Logs group name (optional)
+9. MAX_DEREGISTRATION_PERCENT - Safety threshold for mass deregistration (default: 50)
 """
 
+import json
+import json as json_module
+from typing import Any, Dict, Optional, Set, Tuple
 
-def validate_environment_variable():
+from constant import LambdaEnv
+from aws_services import AwsServices
+from common import (
+    DNS_RECORD_TYPE_A,
+    logger,
+    precondition,
+    get_rds_replica_ips_from_dns,
+    get_pending_registration_ip_set,
+    get_invocation_count_per_pending_deregistration_ip,
+    get_pending_deregistration_ip_set,
+    get_elb_ip_target_from_ip_list,
+)
+
+
+def validate_environment_variable() -> None:
     """
-    # Validating the environment variables
+    Validate required environment variables have valid values.
     """
     error_message = "MAX_LOOKUP_PER_INVOCATION is required to be a positive number"
     precondition(LambdaEnv.MAX_LOOKUP_PER_INVOCATION > 0, error_message)
@@ -46,45 +49,45 @@ def validate_environment_variable():
     precondition(LambdaEnv.INVOCATIONS_BEFORE_DEREGISTRATION > 0, error_message)
 
 
-def get_ip_from_dns():
+def get_ip_from_dns() -> Optional[Set[str]]:
     """
-    Get RDS read replica node IP addresses through DNS lookup. Exit if no IP found in the DNS
-    
-    :return: a set of RDS read replica node IP addresses
+    Get RDS read replica node IP addresses through DNS lookup. Exit if no IP found in the DNS.
+
+    :return: a set of RDS read replica node IP addresses, or None if no IPs found
     """
     ip_from_dns_set = get_rds_replica_ips_from_dns(
-        LambdaEnv.RDS_REPLICA_DNS_LIST, "A", LambdaEnv.MAX_LOOKUP_PER_INVOCATION
+        LambdaEnv.RDS_REPLICA_DNS_LIST, DNS_RECORD_TYPE_A, LambdaEnv.MAX_LOOKUP_PER_INVOCATION
     )
-    logger.info(
+    logger.debug(
         f"RDS replica IPs from DNS lookup: {ip_from_dns_set}. Total IP count: {len(ip_from_dns_set)}"
     )
 
     if not ip_from_dns_set:
         logger.error(
-            f"No IP found from DNS for RDS replicas - {LambdaEnv.RDS_REPLICA_DNS_NAMES}"
+            f"No IP found from DNS for RDS replicas - {LambdaEnv.RDS_REPLICA_DNS_NAMES}. "
             f"Skipping target group changes"
         )
-        return None 
+        return None
 
     return ip_from_dns_set
 
 
-def get_ip_from_previous_invocation(aws_service):
+def get_ip_from_previous_invocation(
+    aws_service: AwsServices,
+) -> Tuple[Dict[str, Any], Dict[str, int], Set[str]]:
     """
-    Get active and pending IP from S3. The IPs were collected from the previous invocation
+    Get active and pending IP from S3. The IPs were collected from the previous invocation.
+
     :param aws_service: aws service object
-    :return:
+    :return: tuple of (active_ip_dict, pending_ip_dict, active_ip_set)
     """
-    active_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(
-        LambdaEnv.ACTIVE_IP_LIST_KEY
-    )
-    pending_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(
-        LambdaEnv.PENDING_IP_LIST_KEY
-    )
-    logger.info(
+    active_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(LambdaEnv.ACTIVE_IP_LIST_KEY)
+    pending_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(LambdaEnv.PENDING_IP_LIST_KEY)
+
+    logger.debug(
         f"Active IPs from previous invocation: {active_ip_dict_from_previous_invocation}"
     )
-    logger.info(
+    logger.debug(
         f"Pending IPs from previous invocation: {pending_ip_dict_from_previous_invocation}"
     )
     active_ip_set_from_previous_invocation = set(
@@ -97,18 +100,45 @@ def get_ip_from_previous_invocation(aws_service):
     )
 
 
+def should_skip_deregistration(
+    pending_deregistration_count: int,
+    registered_target_count: int,
+    max_deregistration_percent: int,
+) -> bool:
+    """
+    Safety check: skip deregistration if it would remove too many targets.
+    Returns True if deregistration should be skipped.
+
+    :param pending_deregistration_count: number of IPs pending deregistration
+    :param registered_target_count: number of currently registered targets
+    :param max_deregistration_percent: maximum allowed deregistration percentage
+    :return: True if deregistration should be skipped
+    """
+    if registered_target_count == 0:
+        return False
+    deregistration_percent = (pending_deregistration_count / registered_target_count) * 100
+    return deregistration_percent > max_deregistration_percent
+
+
 def update_target_group(
-        pending_registration_ip_set, pending_deregistration_ip_set, aws_service
-):
+    pending_registration_ip_set: Set[str],
+    pending_deregistration_ip_set: Set[str],
+    aws_service: AwsServices,
+    registered_target_count: int,
+) -> Tuple[bool, bool]:
     """
     Update target group by registering new active IPs and deregistering pending IPs whose invocation count
-    is higher than INVOCATIONS_BEFORE_DEREGISTRATION
+    is higher than INVOCATIONS_BEFORE_DEREGISTRATION.
+
     :param pending_registration_ip_set: a set of IPs that are pending registration
     :param pending_deregistration_ip_set: a set of IPs that are pending deregistration
     :param aws_service: aws_service object
-    :return: a boolean value indicating whether registration API actually succeeded (default: False)
+    :param registered_target_count: number of currently registered targets
+    :return: tuple of (is_registered, skipped_deregistration)
     """
     is_registered = False
+    skipped_deregistration = False
+
     if pending_registration_ip_set:
         pending_registration_ip_target_list = get_elb_ip_target_from_ip_list(
             list(pending_registration_ip_set), LambdaEnv.RDS_LISTENER_PORT
@@ -116,32 +146,71 @@ def update_target_group(
         is_registered = aws_service.register_target(
             LambdaEnv.NLB_TG_ARN, pending_registration_ip_target_list
         )
-
-    if not pending_registration_ip_set:
+    else:
         logger.info(
             "No pending registration IP found. Skipping ELB target registration..."
         )
 
-    # Deregister target
+    # Deregister target with circuit breaker check
     if pending_deregistration_ip_set:
-        pending_deregistration_ip_target_list = get_elb_ip_target_from_ip_list(
-            list(pending_deregistration_ip_set), LambdaEnv.RDS_LISTENER_PORT
-        )
-        aws_service.deregister_target(
-            LambdaEnv.NLB_TG_ARN, pending_deregistration_ip_target_list
-        )
-
-    if not pending_deregistration_ip_set:
+        if should_skip_deregistration(
+            len(pending_deregistration_ip_set),
+            registered_target_count,
+            LambdaEnv.MAX_DEREGISTRATION_PERCENT,
+        ):
+            logger.warning(
+                f"Circuit breaker triggered: pending deregistration count "
+                f"({len(pending_deregistration_ip_set)}) exceeds "
+                f"{LambdaEnv.MAX_DEREGISTRATION_PERCENT}% of registered targets "
+                f"({registered_target_count}). Skipping deregistration."
+            )
+            skipped_deregistration = True
+        else:
+            pending_deregistration_ip_target_list = get_elb_ip_target_from_ip_list(
+                list(pending_deregistration_ip_set), LambdaEnv.RDS_LISTENER_PORT
+            )
+            aws_service.deregister_target(
+                LambdaEnv.NLB_TG_ARN, pending_deregistration_ip_target_list
+            )
+    else:
         logger.info(
             "No pending deregistration IP found. Skipping ELB target deregistration..."
         )
-    return is_registered
+
+    return is_registered, skipped_deregistration
 
 
-def lambda_handler(event, context):
+def log_invocation_summary(
+    request_id: str,
+    dns_ip_count: int,
+    registered_count: int,
+    deregistered_count: int,
+    skipped_deregistration: bool,
+) -> None:
     """
-    Main Lambda handler
-    This is invoked when Lambda is called
+    Emit structured JSON log entry summarizing the invocation.
+
+    :param request_id: Lambda request ID for correlation
+    :param dns_ip_count: number of IPs resolved from DNS
+    :param registered_count: number of IPs registered in this invocation
+    :param deregistered_count: number of IPs deregistered in this invocation
+    :param skipped_deregistration: whether deregistration was skipped by circuit breaker
+    """
+    summary = {
+        "event": "invocation_summary",
+        "request_id": request_id,
+        "dns_resolved_ips": dns_ip_count,
+        "registered": registered_count,
+        "deregistered": deregistered_count,
+        "deregistration_skipped": skipped_deregistration,
+    }
+    logger.info(json_module.dumps(summary))
+
+
+def lambda_handler(event: Any, context: Any) -> None:
+    """
+    Main Lambda handler.
+    This is invoked when Lambda is called.
     """
 
     # Initialize AWS service clients
@@ -156,15 +225,15 @@ def lambda_handler(event, context):
     ip_from_dns_set = get_ip_from_dns()
 
     if ip_from_dns_set is None:
-        return None 
+        return None
 
     # ---- Step 2 -----
-    # Get IP that are currently registered with the NLB target group and update CloudWatch metric
+    # Get IP that are currently registered with the NLB target group
     logger.info("\n>>>>Step-2: Get IPs from target group<<<<")
     ip_from_target_group_set = set(
         aws_service.get_ip_target_list_by_target_group_arn(LambdaEnv.NLB_TG_ARN)
     )
-    logger.info(
+    logger.debug(
         f"ELB IPs from target group ({LambdaEnv.NLB_TG_ARN}): {ip_from_target_group_set}. "
         f"Total IP count: {len(ip_from_target_group_set)}"
     )
@@ -197,7 +266,7 @@ def lambda_handler(event, context):
         ip_from_dns_set,
         ip_from_target_group_set
     )
-    logger.info(
+    logger.debug(
         f"Pending registration IPs for the current invocation - {pending_registration_ip_set}"
     )
 
@@ -219,8 +288,11 @@ def lambda_handler(event, context):
     # Update IP targets in the NLB target group (registration and deregistration)
     logger.info("\n>>>>Step-6: Update IP targets in the NLB target group (registration and deregistration)<<<<")
     logger.info(f"SAME VPC is set to: {LambdaEnv.SAME_VPC}")
-    is_registered = update_target_group(
-        pending_registration_ip_set, pending_deregistration_ip_set, aws_service
+    is_registered, skipped_deregistration = update_target_group(
+        pending_registration_ip_set,
+        pending_deregistration_ip_set,
+        aws_service,
+        len(ip_from_target_group_set),
     )
 
     # ---- Step 7 -----
@@ -229,17 +301,30 @@ def lambda_handler(event, context):
     # Only upload the current active IP to S3 when registration API succeeded
     # The next invocation will skip the IPs that have already been registered
     if is_registered:
-        logger.info(f"Upload active IP to S3: {active_ip_from_dns_meta_data}")
+        logger.debug(f"Upload active IP to S3: {active_ip_from_dns_meta_data}")
         aws_service.write_content_to_s3(
             json.dumps(active_ip_from_dns_meta_data), LambdaEnv.ACTIVE_IP_LIST_KEY
         )
     else:
         logger.info(f"No IPs were registered. Skip uploading active IP to S3: {active_ip_from_dns_meta_data}")
 
-    logger.info(
+    logger.debug(
         f"Upload pending deregistration IP to S3: {invocation_count_per_pending_deregistration_ip}"
     )
     aws_service.write_content_to_s3(
         json.dumps(invocation_count_per_pending_deregistration_ip),
         LambdaEnv.PENDING_IP_LIST_KEY,
+    )
+
+    # Structured logging summary
+    deregistered_count = (
+        0 if skipped_deregistration or not pending_deregistration_ip_set
+        else len(pending_deregistration_ip_set)
+    )
+    log_invocation_summary(
+        request_id=context.aws_request_id,
+        dns_ip_count=len(ip_from_dns_set),
+        registered_count=len(pending_registration_ip_set) if is_registered else 0,
+        deregistered_count=deregistered_count,
+        skipped_deregistration=skipped_deregistration,
     )

@@ -28,10 +28,6 @@
     "ParameterValue": "rds-cluster-read-replicas"
   },
   {
-    "ParameterKey": "CloudWatchLogGroup",
-    "ParameterValue": "RDS-NLB-Registration"
-  },
-  {
     "ParameterKey": "MAXDNSLookupPerInvocation",
     "ParameterValue": "5"
   },

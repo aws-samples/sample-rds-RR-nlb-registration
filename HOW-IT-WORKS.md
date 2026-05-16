@@ -170,3 +170,18 @@ On the very first invocation (or if the S3 files don't exist), the Lambda handle
 | `MAXDNSLookupPerInvocation` | 5 | DNS retry attempts per replica name |
 | `InvocationBeforeDeregistration` | 3 | Consecutive misses before deregistration |
 | `StatePrefix` | rds-cluster-read-replicas | S3 key prefix for state files |
+
+## CloudWatch Logs
+
+The Lambda function writes logs to its default CloudWatch Logs group at `/aws/lambda/{function-name}`. With the parameterized stack name, this becomes `/aws/lambda/{stack-name}-RDS-NLB-Registration`.
+
+No custom log group configuration is needed — the Lambda runtime creates the log group automatically on first invocation. The IAM policy in the CloudFormation template grants `logs:CreateLogGroup`, `logs:CreateLogStream`, and `logs:PutLogEvents` scoped to this specific log group.
+
+At the end of each invocation, the function emits a structured JSON summary log entry containing the request ID, number of resolved IPs, registration/deregistration counts, and whether the circuit breaker was triggered. This can be queried in CloudWatch Logs Insights:
+
+```
+fields @timestamp, dns_resolved_ips, registered, deregistered, deregistration_skipped
+| filter event = "invocation_summary"
+| sort @timestamp desc
+| limit 20
+```

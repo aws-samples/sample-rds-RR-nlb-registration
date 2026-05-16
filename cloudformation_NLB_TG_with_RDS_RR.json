@@ -34,11 +34,6 @@
       "Default": "rds-cluster-read-replicas",
       "Description": "Enter the S3 key prefix for state files (e.g., rds-cluster-read-replicas)"
     },
-    "CloudWatchLogGroup": {
-      "Type": "String",
-      "Default": "",
-      "Description": "(Optional) Enter the CloudWatch Logs group name. Leave empty to use default Lambda log group"
-    },
     "MAXDNSLookupPerInvocation": {
       "Type": "Number",
       "Default": 5,
@@ -49,31 +44,34 @@
       "Default": 3,
       "Description": "Please specify how many invocations are needed before an IP is deregistered"
     },
+    "MaxDeregistrationPercent": {
+      "Type": "Number",
+      "Default": 50,
+      "Description": "Maximum percentage of registered targets that can be deregistered in a single invocation (safety threshold)"
+    },
+    "Environment": {
+      "Type": "String",
+      "Default": "production",
+      "Description": "Deployment environment name for resource tagging"
+    },
+    "Owner": {
+      "Type": "String",
+      "Default": "platform-team",
+      "Description": "Team or individual owning this stack for resource tagging"
+    },
     "Region": {
       "Type": "String",
       "Default": "us-west-2",
       "Description": "Please specify the region where you want to create your Lambda function"
     }
   },
-  "Conditions": {
-    "HasCloudWatchLogGroup": {
-      "Fn::Not": [
-        {
-          "Fn::Equals": [
-            {
-              "Ref": "CloudWatchLogGroup"
-            },
-            ""
-          ]
-        }
-      ]
-    }
-  },
   "Resources": {
     "LambdaFunction": {
       "Type": "AWS::Serverless::Function",
       "Properties": {
-        "FunctionName": "RDS-NLB-Registration",
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-RDS-NLB-Registration"
+        },
         "CodeUri": {
           "Bucket": {
             "Ref": "CodeS3Bucket"
@@ -84,7 +82,8 @@
         },
         "Description": "Register RDS Read Replica IPs to Network Load Balancer",
         "Handler": "populate_NLB_TG_with_RDS_RR.lambda_handler",
-        "Timeout": 300,
+        "Timeout": 60,
+        "ReservedConcurrentExecutions": 1,
         "Role": {
           "Fn::GetAtt": [
             "LambdaIAMRole",
@@ -103,9 +102,6 @@
             "STATE_PREFIX": {
               "Ref": "StatePrefix"
             },
-            "CLOUDWATCH_LOG_GROUP": {
-              "Ref": "CloudWatchLogGroup"
-            },
             "NLB_TG_ARN": {
               "Ref": "NLBTargetGroupARN"
             },
@@ -117,7 +113,19 @@
             },
             "INVOCATIONS_BEFORE_DEREGISTRATION": {
               "Ref": "InvocationBeforeDeregistration"
+            },
+            "MAX_DEREGISTRATION_PERCENT": {
+              "Ref": "MaxDeregistrationPercent"
             }
+          }
+        },
+        "Tags": {
+          "Application": "RDS-NLB-Registration",
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "Owner": {
+            "Ref": "Owner"
           }
         }
       }
@@ -137,6 +145,24 @@
               ]
             },
             "Id": "TargetFunctionV1"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
           }
         ]
       },
@@ -183,6 +209,24 @@
           {
             "Ref": "LambdaRDSReadReplicaPolicy"
           }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
         ]
       }
     },
@@ -203,15 +247,7 @@
               ],
               "Resource": [
                 {
-                  "Fn::If": [
-                    "HasCloudWatchLogGroup",
-                    {
-                      "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CloudWatchLogGroup}:*"
-                    },
-                    {
-                      "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/RDS-NLB-Registration:*"
-                    }
-                  ]
+                  "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-RDS-NLB-Registration:*"
                 }
               ]
             },
@@ -233,10 +269,17 @@
               ]
             },
             {
-              "Sid": "ELB",
+              "Sid": "ELBDescribe",
               "Effect": "Allow",
               "Action": [
-                "elasticloadbalancing:DescribeTargetHealth",
+                "elasticloadbalancing:DescribeTargetHealth"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "ELBTargetGroup",
+              "Effect": "Allow",
+              "Action": [
                 "elasticloadbalancing:RegisterTargets",
                 "elasticloadbalancing:DeregisterTargets"
               ],

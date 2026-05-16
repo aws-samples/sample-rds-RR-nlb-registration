@@ -7,6 +7,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from test.unittest_constant import UnittestConstant
+from constant import LambdaEnv
 
 
 @pytest.fixture()
@@ -19,7 +20,6 @@ def env_setup(monkeypatch):
     monkeypatch.setenv("RDS_REPLICA_DNS_NAMES", "replica1.rds.amazonaws.com, replica2.rds.amazonaws.com, replica3.rds.amazonaws.com")
     monkeypatch.setenv("RDS_LISTENER_PORT", "3306")
     monkeypatch.setenv("STATE_PREFIX", "rds-cluster-read-replicas")
-    monkeypatch.setenv("CLOUDWATCH_LOG_GROUP", "/aws/lambda/rds-nlb-registration")
     
     # Common environment variables
     monkeypatch.setenv("S3_BUCKET", UnittestConstant.S3_BUCKET)
@@ -33,3 +33,7 @@ def env_setup(monkeypatch):
     )
     monkeypatch.setenv("SAME_VPC", UnittestConstant.SAME_VPC)
     monkeypatch.setenv("AWS_REGION", UnittestConstant.AWS_REGION)
+    monkeypatch.setenv("MAX_DEREGISTRATION_PERCENT", "50")
+
+    # Reset LambdaEnv so it re-reads environment variables for this test
+    LambdaEnv.reset()
