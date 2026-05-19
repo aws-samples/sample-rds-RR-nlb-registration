@@ -32,15 +32,14 @@ def test_get_pending_registration_ip_set(mocked_logger):
 
     expected_result = {"2.2.2.2", "3.3.3.3"}
     actual_result = common_util.get_pending_registration_ip_set(
-        ip_from_dns_set,
-        ip_from_target_group_set
+        ip_from_dns_set, ip_from_target_group_set
     )
     assert actual_result == expected_result
 
 
 @patch("common.logger", return_value=MagicMock())
 def test_get_invocation_count_per_pending_deregistration_ip_without_pending(
-        mocked_logger,
+    mocked_logger,
 ):
     # When there is no pending IP from the previous invocation
     # Pending deregistration IPs (Without considering INVOCATIONS_BEFORE_DEREGISTRATION) are:
@@ -111,8 +110,14 @@ def test_get_elb_ip_target_from_ip_list_same_vpc(env_setup):
     elb_listener = 3306
     actual_result = common_util.get_elb_ip_target_from_ip_list(ip_list, elb_listener)
     expected_result = [
-        {"Id": "1.1.1.1", "Port": 3306, },
-        {"Id": "2.2.2.2", "Port": 3306, },
+        {
+            "Id": "1.1.1.1",
+            "Port": 3306,
+        },
+        {
+            "Id": "2.2.2.2",
+            "Port": 3306,
+        },
     ]
     assert actual_result == expected_result
 

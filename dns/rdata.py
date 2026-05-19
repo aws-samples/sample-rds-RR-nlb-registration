@@ -642,9 +642,9 @@ class GenericRdata(Rdata):
         return cls(rdclass, rdtype, parser.get_remaining())
 
 
-_rdata_classes: Dict[Tuple[dns.rdataclass.RdataClass, dns.rdatatype.RdataType], Any] = (
-    {}
-)
+_rdata_classes: Dict[
+    Tuple[dns.rdataclass.RdataClass, dns.rdatatype.RdataType], Any
+] = {}
 _module_prefix = "dns.rdtypes"
 
 

@@ -22,9 +22,9 @@ from constant import LambdaEnv
 dns_name_strategy = st.from_regex(r"[a-z][a-z0-9\-\.]{1,50}\.com", fullmatch=True)
 
 # Generate a valid comma-separated DNS name string with at least one entry
-valid_dns_names_strategy = st.lists(
-    dns_name_strategy, min_size=1, max_size=5
-).map(lambda names: ",".join(names))
+valid_dns_names_strategy = st.lists(dns_name_strategy, min_size=1, max_size=5).map(
+    lambda names: ",".join(names)
+)
 
 # Generate valid integer port numbers
 valid_port_strategy = st.integers(min_value=1, max_value=65535)
@@ -45,12 +45,19 @@ arn_strategy = st.from_regex(
 )
 
 # Generate valid region strings
-region_strategy = st.sampled_from([
-    "us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1",
-])
+region_strategy = st.sampled_from(
+    [
+        "us-east-1",
+        "us-west-2",
+        "eu-west-1",
+        "ap-southeast-1",
+    ]
+)
 
 # Generate boolean-like strings for SAME_VPC
-bool_string_strategy = st.sampled_from(["true", "false", "True", "False", "TRUE", "FALSE"])
+bool_string_strategy = st.sampled_from(
+    ["true", "false", "True", "False", "TRUE", "FALSE"]
+)
 
 
 # Composite strategy for a full valid environment configuration
@@ -83,9 +90,15 @@ def clear_env(config):
 
 # Required env var keys for cleanup
 REQUIRED_ENV_KEYS = [
-    "RDS_REPLICA_DNS_NAMES", "RDS_LISTENER_PORT", "STATE_PREFIX",
-    "S3_BUCKET", "NLB_TG_ARN", "MAX_LOOKUP_PER_INVOCATION",
-    "INVOCATIONS_BEFORE_DEREGISTRATION", "SAME_VPC", "AWS_REGION",
+    "RDS_REPLICA_DNS_NAMES",
+    "RDS_LISTENER_PORT",
+    "STATE_PREFIX",
+    "S3_BUCKET",
+    "NLB_TG_ARN",
+    "MAX_LOOKUP_PER_INVOCATION",
+    "INVOCATIONS_BEFORE_DEREGISTRATION",
+    "SAME_VPC",
+    "AWS_REGION",
     "MAX_DEREGISTRATION_PERCENT",
 ]
 
@@ -102,7 +115,9 @@ class TestProperty1LazyInitialization:
     those environment variables (not raise KeyError or return stale values).
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(config=valid_env_config())
     def test_lazy_init_reads_env_after_import(self, config):
         """Feature: code-quality-improvements, Property 1: Lazy initialization reads environment variables after import"""
@@ -119,8 +134,12 @@ class TestProperty1LazyInitialization:
             assert LambdaEnv.STATE_PREFIX == config["STATE_PREFIX"]
             assert LambdaEnv.S3_BUCKET == config["S3_BUCKET"]
             assert LambdaEnv.NLB_TG_ARN == config["NLB_TG_ARN"]
-            assert LambdaEnv.MAX_LOOKUP_PER_INVOCATION == int(config["MAX_LOOKUP_PER_INVOCATION"])
-            assert LambdaEnv.INVOCATIONS_BEFORE_DEREGISTRATION == int(config["INVOCATIONS_BEFORE_DEREGISTRATION"])
+            assert LambdaEnv.MAX_LOOKUP_PER_INVOCATION == int(
+                config["MAX_LOOKUP_PER_INVOCATION"]
+            )
+            assert LambdaEnv.INVOCATIONS_BEFORE_DEREGISTRATION == int(
+                config["INVOCATIONS_BEFORE_DEREGISTRATION"]
+            )
             assert LambdaEnv.SAME_VPC == (config["SAME_VPC"].lower() == "true")
             assert LambdaEnv.REGION == config["AWS_REGION"]
         finally:
@@ -165,7 +184,9 @@ class TestProperty3InterfaceTypes:
     (str, int, bool, List[str] as appropriate).
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(config=valid_env_config())
     def test_interface_preserves_types(self, config):
         """Feature: code-quality-improvements, Property 3: LambdaEnv interface preserves attribute types"""
@@ -213,20 +234,24 @@ class TestProperty9DnsValidation:
     SHALL raise a ValueError.
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
-        invalid_dns=st.sampled_from([
-            "",
-            ",",
-            ",,",
-            " , , ",
-            "   ",
-            ",  ,",
-            " , ",
-            "  ,  ,  ",
-            "\t,\t",
-            "  \t  ",
-        ])
+        invalid_dns=st.sampled_from(
+            [
+                "",
+                ",",
+                ",,",
+                " , , ",
+                "   ",
+                ",  ,",
+                " , ",
+                "  ,  ,  ",
+                "\t,\t",
+                "  \t  ",
+            ]
+        )
     )
     def test_dns_parsing_rejects_all_invalid_entries(self, invalid_dns):
         """Feature: code-quality-improvements, Property 9: DNS name parsing rejects invalid entries"""
@@ -252,7 +277,9 @@ class TestProperty9DnsValidation:
             LambdaEnv.reset()
             clear_env(base_config)
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         num_empty=st.integers(min_value=2, max_value=6),
         whitespace=st.sampled_from(["", " ", "  ", "\t", " \t "]),
@@ -317,10 +344,18 @@ tg_arn_strategy = st.from_regex(
 
 # Strategy for non-boto3 exception types
 # Excludes KeyError because it wraps its arg in quotes when str() is called
-non_boto3_exception_strategy = st.sampled_from([
-    RuntimeError, TypeError, ValueError, OSError, IOError,
-    IndexError, AttributeError, MemoryError,
-])
+non_boto3_exception_strategy = st.sampled_from(
+    [
+        RuntimeError,
+        TypeError,
+        ValueError,
+        OSError,
+        IOError,
+        IndexError,
+        AttributeError,
+        MemoryError,
+    ]
+)
 
 # Strategy for exception messages
 exception_message_strategy = st.text(min_size=1, max_size=100)
@@ -351,14 +386,18 @@ class TestProperty4ExceptionPropagation:
     the AwsServices method SHALL allow it to propagate to the caller unchanged.
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         exc_type=non_boto3_exception_strategy,
         exc_msg=exception_message_strategy,
         bucket=s3_bucket_strategy,
         key=object_key_strategy,
     )
-    def test_non_boto3_exceptions_propagate_from_write_content_to_s3(self, exc_type, exc_msg, bucket, key):
+    def test_non_boto3_exceptions_propagate_from_write_content_to_s3(
+        self, exc_type, exc_msg, bucket, key
+    ):
         """Feature: code-quality-improvements, Property 4: Non-boto3 exceptions propagate from AwsServices (write_content_to_s3)"""
         original_exc = exc_type(exc_msg)
 
@@ -379,14 +418,18 @@ class TestProperty4ExceptionPropagation:
             # Verify it's the exact same exception instance (propagated unchanged)
             assert exc_info.value is original_exc
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         exc_type=non_boto3_exception_strategy,
         exc_msg=exception_message_strategy,
         bucket=s3_bucket_strategy,
         key=object_key_strategy,
     )
-    def test_non_boto3_exceptions_propagate_from_download_elb_ip_from_s3(self, exc_type, exc_msg, bucket, key):
+    def test_non_boto3_exceptions_propagate_from_download_elb_ip_from_s3(
+        self, exc_type, exc_msg, bucket, key
+    ):
         """Feature: code-quality-improvements, Property 4: Non-boto3 exceptions propagate from AwsServices (download_elb_ip_from_s3)"""
         original_exc = exc_type(exc_msg)
 
@@ -405,14 +448,18 @@ class TestProperty4ExceptionPropagation:
             # Verify it's the exact same exception instance (propagated unchanged)
             assert exc_info.value is original_exc
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         exc_type=non_boto3_exception_strategy,
         exc_msg=exception_message_strategy,
         bucket=s3_bucket_strategy,
         tg_arn=tg_arn_strategy,
     )
-    def test_non_boto3_exceptions_propagate_from_register_target(self, exc_type, exc_msg, bucket, tg_arn):
+    def test_non_boto3_exceptions_propagate_from_register_target(
+        self, exc_type, exc_msg, bucket, tg_arn
+    ):
         """Feature: code-quality-improvements, Property 4: Non-boto3 exceptions propagate from AwsServices (register_target)"""
         original_exc = exc_type(exc_msg)
 
@@ -431,14 +478,18 @@ class TestProperty4ExceptionPropagation:
             # Verify it's the exact same exception instance (propagated unchanged)
             assert exc_info.value is original_exc
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         exc_type=non_boto3_exception_strategy,
         exc_msg=exception_message_strategy,
         bucket=s3_bucket_strategy,
         tg_arn=tg_arn_strategy,
     )
-    def test_non_boto3_exceptions_propagate_from_deregister_target(self, exc_type, exc_msg, bucket, tg_arn):
+    def test_non_boto3_exceptions_propagate_from_deregister_target(
+        self, exc_type, exc_msg, bucket, tg_arn
+    ):
         """Feature: code-quality-improvements, Property 4: Non-boto3 exceptions propagate from AwsServices (deregister_target)"""
         original_exc = exc_type(exc_msg)
 
@@ -457,14 +508,18 @@ class TestProperty4ExceptionPropagation:
             # Verify it's the exact same exception instance (propagated unchanged)
             assert exc_info.value is original_exc
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         exc_type=non_boto3_exception_strategy,
         exc_msg=exception_message_strategy,
         bucket=s3_bucket_strategy,
         tg_arn=tg_arn_strategy,
     )
-    def test_non_boto3_exceptions_propagate_from_get_ip_target_list(self, exc_type, exc_msg, bucket, tg_arn):
+    def test_non_boto3_exceptions_propagate_from_get_ip_target_list(
+        self, exc_type, exc_msg, bucket, tg_arn
+    ):
         """Feature: code-quality-improvements, Property 4: Non-boto3 exceptions propagate from AwsServices (get_ip_target_list_by_target_group_arn)"""
         original_exc = exc_type(exc_msg)
 
@@ -495,7 +550,9 @@ class TestProperty5WriteReraises:
     write_content_to_s3 SHALL re-raise the same exception after logging.
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_code=error_code_strategy,
         bucket=s3_bucket_strategy,
@@ -522,7 +579,9 @@ class TestProperty5WriteReraises:
             # Verify it's the exact same exception instance
             assert exc_info.value is original_error
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         bucket=s3_bucket_strategy,
         key=object_key_strategy,
@@ -561,13 +620,17 @@ class TestProperty6ErrorLogging:
     response and the operation context (bucket/key or target group ARN).
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_code=error_code_strategy,
         bucket=s3_bucket_strategy,
         key=object_key_strategy,
     )
-    def test_write_content_to_s3_logs_error_code_and_context(self, error_code, bucket, key):
+    def test_write_content_to_s3_logs_error_code_and_context(
+        self, error_code, bucket, key
+    ):
         """Feature: code-quality-improvements, Property 6: Write operation ClientErrors are logged with context (write_content_to_s3)"""
         original_error = make_client_error(error_code)
 
@@ -591,23 +654,27 @@ class TestProperty6ErrorLogging:
                 log_message = mock_logger.error.call_args[0][0]
 
                 # Log must contain the error code and the bucket/key context
-                assert error_code in log_message, (
-                    f"Expected error code '{error_code}' in log message: {log_message}"
-                )
-                assert bucket in log_message, (
-                    f"Expected bucket '{bucket}' in log message: {log_message}"
-                )
-                assert key in log_message, (
-                    f"Expected key '{key}' in log message: {log_message}"
-                )
+                assert (
+                    error_code in log_message
+                ), f"Expected error code '{error_code}' in log message: {log_message}"
+                assert (
+                    bucket in log_message
+                ), f"Expected bucket '{bucket}' in log message: {log_message}"
+                assert (
+                    key in log_message
+                ), f"Expected key '{key}' in log message: {log_message}"
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_code=error_code_strategy,
         bucket=s3_bucket_strategy,
         tg_arn=tg_arn_strategy,
     )
-    def test_register_target_logs_error_code_and_context(self, error_code, bucket, tg_arn):
+    def test_register_target_logs_error_code_and_context(
+        self, error_code, bucket, tg_arn
+    ):
         """Feature: code-quality-improvements, Property 6: Write operation ClientErrors are logged with context (register_target)"""
         original_error = make_client_error(error_code)
 
@@ -631,20 +698,24 @@ class TestProperty6ErrorLogging:
                 log_message = mock_logger.error.call_args[0][0]
 
                 # Log must contain the error code and the target group ARN
-                assert error_code in log_message, (
-                    f"Expected error code '{error_code}' in log message: {log_message}"
-                )
-                assert tg_arn in log_message, (
-                    f"Expected target group ARN '{tg_arn}' in log message: {log_message}"
-                )
+                assert (
+                    error_code in log_message
+                ), f"Expected error code '{error_code}' in log message: {log_message}"
+                assert (
+                    tg_arn in log_message
+                ), f"Expected target group ARN '{tg_arn}' in log message: {log_message}"
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_code=error_code_strategy,
         bucket=s3_bucket_strategy,
         tg_arn=tg_arn_strategy,
     )
-    def test_deregister_target_logs_error_code_and_context(self, error_code, bucket, tg_arn):
+    def test_deregister_target_logs_error_code_and_context(
+        self, error_code, bucket, tg_arn
+    ):
         """Feature: code-quality-improvements, Property 6: Write operation ClientErrors are logged with context (deregister_target)"""
         original_error = make_client_error(error_code)
 
@@ -665,12 +736,12 @@ class TestProperty6ErrorLogging:
                 log_message = mock_logger.error.call_args[0][0]
 
                 # Log must contain the error code and the target group ARN
-                assert error_code in log_message, (
-                    f"Expected error code '{error_code}' in log message: {log_message}"
-                )
-                assert tg_arn in log_message, (
-                    f"Expected target group ARN '{tg_arn}' in log message: {log_message}"
-                )
+                assert (
+                    error_code in log_message
+                ), f"Expected error code '{error_code}' in log message: {log_message}"
+                assert (
+                    tg_arn in log_message
+                ), f"Expected target group ARN '{tg_arn}' in log message: {log_message}"
 
 
 # --- Property 8, 11: common.py property tests ---
@@ -705,7 +776,9 @@ class TestProperty8PortType:
     where the "Port" field is an integer (not a string).
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         ip_list=ip_list_strategy,
         port=port_strategy,
@@ -721,17 +794,21 @@ class TestProperty8PortType:
         assert len(result) == len(ip_list)
         for target in result:
             assert "Port" in target
-            assert isinstance(target["Port"], int), (
-                f"Expected Port to be int, got {type(target['Port']).__name__}: {target['Port']}"
-            )
+            assert isinstance(
+                target["Port"], int
+            ), f"Expected Port to be int, got {type(target['Port']).__name__}: {target['Port']}"
             assert target["Port"] == port
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         ip_list=st.lists(ipv4_strategy, min_size=1, max_size=20),
         port=port_strategy,
     )
-    def test_target_dicts_have_integer_port_different_vpc(self, ip_list, port, monkeypatch, env_setup):
+    def test_target_dicts_have_integer_port_different_vpc(
+        self, ip_list, port, monkeypatch, env_setup
+    ):
         """Feature: code-quality-improvements, Property 8: Target dictionaries use integer port values (SAME_VPC=false)"""
         monkeypatch.setenv("SAME_VPC", "false")
         LambdaEnv.reset()
@@ -742,9 +819,9 @@ class TestProperty8PortType:
         assert len(result) == len(ip_list)
         for target in result:
             assert "Port" in target
-            assert isinstance(target["Port"], int), (
-                f"Expected Port to be int, got {type(target['Port']).__name__}: {target['Port']}"
-            )
+            assert isinstance(
+                target["Port"], int
+            ), f"Expected Port to be int, got {type(target['Port']).__name__}: {target['Port']}"
             assert target["Port"] == port
             # Different VPC should also have AvailabilityZone
             assert target.get("AvailabilityZone") == "all"
@@ -763,7 +840,9 @@ class TestProperty11PreconditionLog:
     of the boolean value as the primary diagnostic.
     """
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_msg=st.text(min_size=1, max_size=100).filter(
             lambda s: s.strip() and s != "False"
@@ -780,17 +859,19 @@ class TestProperty11PreconditionLog:
             log_message = mock_logger.error.call_args[0][0]
 
             # The log message SHALL contain the error message
-            assert error_msg in log_message, (
-                f"Expected error message '{error_msg}' in log output: '{log_message}'"
-            )
+            assert (
+                error_msg in log_message
+            ), f"Expected error message '{error_msg}' in log output: '{log_message}'"
 
             # The log format should be "Pre-condition failed: {error_message}"
             # Verify it uses the expected format (not the old format that logged the boolean)
-            assert log_message == f"Pre-condition failed: {error_msg}", (
-                f"Log message should follow format 'Pre-condition failed: <msg>'. Got: '{log_message}'"
-            )
+            assert (
+                log_message == f"Pre-condition failed: {error_msg}"
+            ), f"Log message should follow format 'Pre-condition failed: <msg>'. Got: '{log_message}'"
 
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(
+        max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture]
+    )
     @given(
         error_msg=st.text(min_size=5, max_size=100).filter(
             lambda s: s.strip() and "False" not in s
@@ -814,14 +895,17 @@ class TestProperty11PreconditionLog:
             )
 
             # But it SHOULD contain the actual error message
-            assert error_msg in log_message, (
-                f"Expected error message '{error_msg}' in log output: '{log_message}'"
-            )
+            assert (
+                error_msg in log_message
+            ), f"Expected error message '{error_msg}' in log output: '{log_message}'"
 
 
 # --- Property 7, 10: Handler logic property tests ---
 
-from populate_NLB_TG_with_RDS_RR import should_skip_deregistration, log_invocation_summary
+from populate_NLB_TG_with_RDS_RR import (
+    should_skip_deregistration,
+    log_invocation_summary,
+)
 
 
 # --- Property 7: Circuit breaker skips deregistration above threshold ---
@@ -842,7 +926,9 @@ class TestProperty7CircuitBreaker:
         registered=st.integers(min_value=1, max_value=10000),
         max_percent=st.integers(min_value=1, max_value=100),
     )
-    def test_circuit_breaker_returns_true_above_threshold(self, pending, registered, max_percent):
+    def test_circuit_breaker_returns_true_above_threshold(
+        self, pending, registered, max_percent
+    ):
         """Feature: code-quality-improvements, Property 7: Circuit breaker skips deregistration above threshold (above)"""
         # **Validates: Requirements 4.1**
         deregistration_percent = (pending / registered) * 100
@@ -861,7 +947,9 @@ class TestProperty7CircuitBreaker:
         registered=st.integers(min_value=1, max_value=10000),
         max_percent=st.integers(min_value=1, max_value=100),
     )
-    def test_circuit_breaker_returns_false_at_or_below_threshold(self, pending, registered, max_percent):
+    def test_circuit_breaker_returns_false_at_or_below_threshold(
+        self, pending, registered, max_percent
+    ):
         """Feature: code-quality-improvements, Property 7: Circuit breaker skips deregistration above threshold (at or below)"""
         # **Validates: Requirements 4.1**
         deregistration_percent = (pending / registered) * 100
@@ -879,7 +967,9 @@ class TestProperty7CircuitBreaker:
         pending=st.integers(min_value=0, max_value=10000),
         max_percent=st.integers(min_value=1, max_value=100),
     )
-    def test_circuit_breaker_returns_false_when_registered_is_zero(self, pending, max_percent):
+    def test_circuit_breaker_returns_false_when_registered_is_zero(
+        self, pending, max_percent
+    ):
         """Feature: code-quality-improvements, Property 7: Circuit breaker skips deregistration above threshold (zero registered)"""
         # **Validates: Requirements 4.1**
         result = should_skip_deregistration(pending, 0, max_percent)
@@ -910,7 +1000,12 @@ class TestProperty10StructuredLog:
         skipped_deregistration=st.booleans(),
     )
     def test_invocation_summary_emits_valid_json_with_required_keys(
-        self, request_id, dns_ip_count, registered_count, deregistered_count, skipped_deregistration
+        self,
+        request_id,
+        dns_ip_count,
+        registered_count,
+        deregistered_count,
+        skipped_deregistration,
     ):
         """Feature: code-quality-improvements, Property 10: Invocation summary log is valid structured JSON"""
         # **Validates: Requirements 13.1, 13.2, 13.3**
@@ -929,6 +1024,7 @@ class TestProperty10StructuredLog:
 
             # Parse the log message as JSON - must not raise
             import json as json_lib
+
             parsed = json_lib.loads(log_message)
 
             # Verify all required keys are present
@@ -940,9 +1036,9 @@ class TestProperty10StructuredLog:
                 "deregistered",
                 "deregistration_skipped",
             }
-            assert required_keys.issubset(parsed.keys()), (
-                f"Missing keys: {required_keys - set(parsed.keys())}. Got: {set(parsed.keys())}"
-            )
+            assert required_keys.issubset(
+                parsed.keys()
+            ), f"Missing keys: {required_keys - set(parsed.keys())}. Got: {set(parsed.keys())}"
 
             # Verify values match inputs
             assert parsed["event"] == "invocation_summary"

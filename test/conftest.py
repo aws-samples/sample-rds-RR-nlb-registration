@@ -17,10 +17,13 @@ def env_setup(monkeypatch):
     :param monkeypatch:
     """
     # RDS-specific environment variables
-    monkeypatch.setenv("RDS_REPLICA_DNS_NAMES", "replica1.rds.amazonaws.com, replica2.rds.amazonaws.com, replica3.rds.amazonaws.com")
+    monkeypatch.setenv(
+        "RDS_REPLICA_DNS_NAMES",
+        "replica1.rds.amazonaws.com, replica2.rds.amazonaws.com, replica3.rds.amazonaws.com",
+    )
     monkeypatch.setenv("RDS_LISTENER_PORT", "3306")
     monkeypatch.setenv("STATE_PREFIX", "rds-cluster-read-replicas")
-    
+
     # Common environment variables
     monkeypatch.setenv("S3_BUCKET", UnittestConstant.S3_BUCKET)
     monkeypatch.setenv("NLB_TG_ARN", UnittestConstant.NLB_TG_ARN)

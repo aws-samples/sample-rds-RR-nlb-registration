@@ -18,9 +18,15 @@ class _LambdaEnvMeta:
         self._cache["STATE_PREFIX"] = os.environ["STATE_PREFIX"]
         self._cache["S3_BUCKET"] = os.environ["S3_BUCKET"]
         self._cache["NLB_TG_ARN"] = os.environ["NLB_TG_ARN"]
-        self._cache["MAX_LOOKUP_PER_INVOCATION"] = int(os.environ["MAX_LOOKUP_PER_INVOCATION"])
-        self._cache["INVOCATIONS_BEFORE_DEREGISTRATION"] = int(os.environ["INVOCATIONS_BEFORE_DEREGISTRATION"])
-        self._cache["MAX_DEREGISTRATION_PERCENT"] = int(os.getenv("MAX_DEREGISTRATION_PERCENT", "50"))
+        self._cache["MAX_LOOKUP_PER_INVOCATION"] = int(
+            os.environ["MAX_LOOKUP_PER_INVOCATION"]
+        )
+        self._cache["INVOCATIONS_BEFORE_DEREGISTRATION"] = int(
+            os.environ["INVOCATIONS_BEFORE_DEREGISTRATION"]
+        )
+        self._cache["MAX_DEREGISTRATION_PERCENT"] = int(
+            os.getenv("MAX_DEREGISTRATION_PERCENT", "50")
+        )
         self._cache["SAME_VPC"] = os.getenv("SAME_VPC", "true").lower() == "true"
         self._cache["REGION"] = os.environ["AWS_REGION"]
 
@@ -28,7 +34,9 @@ class _LambdaEnvMeta:
         dns_names = self._cache["RDS_REPLICA_DNS_NAMES"]
         dns_list = [name.strip() for name in dns_names.split(",") if name.strip()]
         if not dns_list:
-            raise ValueError("RDS_REPLICA_DNS_NAMES must contain at least one valid DNS name")
+            raise ValueError(
+                "RDS_REPLICA_DNS_NAMES must contain at least one valid DNS name"
+            )
         self._cache["RDS_REPLICA_DNS_LIST"] = dns_list
 
         prefix = self._cache["STATE_PREFIX"]

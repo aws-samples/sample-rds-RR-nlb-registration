@@ -53,11 +53,15 @@ def dns_lookup(domain_name: str, record_type: str) -> List[str]:
     lookup_answers = my_resolver.resolve(domain_name, record_type)
     lookup_result_list = [str(answer) for answer in lookup_answers]
 
-    logger.debug(f"DNS lookup returned {len(lookup_result_list)} result(s): {lookup_result_list}")
+    logger.debug(
+        f"DNS lookup returned {len(lookup_result_list)} result(s): {lookup_result_list}"
+    )
     return lookup_result_list
 
 
-def dns_lookup_with_retry(domain_name: str, record_type: str, total_retry_count: int) -> Set[str]:
+def dns_lookup_with_retry(
+    domain_name: str, record_type: str, total_retry_count: int
+) -> Set[str]:
     """
     Get DNS lookup results with retry using VPC DNS resolver.
 
@@ -71,7 +75,9 @@ def dns_lookup_with_retry(domain_name: str, record_type: str, total_retry_count:
 
     while attempt <= total_retry_count:
         try:
-            logger.info(f"DNS lookup attempt {attempt}/{total_retry_count} for {domain_name}")
+            logger.info(
+                f"DNS lookup attempt {attempt}/{total_retry_count} for {domain_name}"
+            )
             lookup_result_per_attempt = dns_lookup(domain_name, record_type)
 
             if lookup_result_per_attempt:
@@ -124,7 +130,9 @@ def get_rds_replica_ips_from_dns(
     for dns_name in dns_name_list:
         try:
             logger.info(f"Resolving RDS DNS name: {dns_name}")
-            ips = dns_lookup_with_retry(dns_name, record_type, max_lookup_per_invocation)
+            ips = dns_lookup_with_retry(
+                dns_name, record_type, max_lookup_per_invocation
+            )
             if ips:
                 logger.debug(f"Resolved {len(ips)} IP(s) for {dns_name}: {ips}")
                 aggregated_ips.update(ips)

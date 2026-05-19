@@ -7,9 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from common import logger, precondition
 
-RETRY_CONFIG = Config(
-    retries={"max_attempts": 3, "mode": "adaptive"}
-)
+RETRY_CONFIG = Config(retries={"max_attempts": 3, "mode": "adaptive"})
 
 
 class AwsServices:
@@ -42,9 +40,7 @@ class AwsServices:
                 f"Successfully wrote content to s3://{self.bucket}/{object_key}"
             )
         except (ClientError, BotoCoreError) as e:
-            logger.error(
-                f"Failed to write to s3://{self.bucket}/{object_key}: {e}"
-            )
+            logger.error(f"Failed to write to s3://{self.bucket}/{object_key}: {e}")
             raise
 
     def download_elb_ip_from_s3(self, object_key: str) -> Dict[str, Any]:
@@ -83,9 +79,7 @@ class AwsServices:
         logger.debug(f"Register new_target_list:{new_target_list}")
         is_registered = False
         try:
-            self.elbv2.register_targets(
-                TargetGroupArn=tg_arn, Targets=new_target_list
-            )
+            self.elbv2.register_targets(TargetGroupArn=tg_arn, Targets=new_target_list)
             is_registered = True
         except ClientError as e:
             logger.error(

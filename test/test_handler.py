@@ -54,7 +54,10 @@ class TestHandlerHappyPath:
         call_args = mock_aws.register_target.call_args
         tg_arn = call_args[0][0]
         targets = call_args[0][1]
-        assert tg_arn == "arn:aws:elasticloadbalancing:us-east-1:12345:targetgroup/TG-mocked/12345abcde"
+        assert (
+            tg_arn
+            == "arn:aws:elasticloadbalancing:us-east-1:12345:targetgroup/TG-mocked/12345abcde"
+        )
         registered_ips = {t["Id"] for t in targets}
         assert registered_ips == {"10.0.2.8", "10.0.3.12"}
 
@@ -106,14 +109,24 @@ class TestHandlerCircuitBreaker:
 
         # Target group has 4 IPs registered - 3 are no longer in DNS
         mock_aws.get_ip_target_list_by_target_group_arn.return_value = [
-            "10.0.1.5", "10.0.2.8", "10.0.3.12", "10.0.4.7"
+            "10.0.1.5",
+            "10.0.2.8",
+            "10.0.3.12",
+            "10.0.4.7",
         ]
 
         # Previous state shows all 4 IPs were active, and 3 IPs have been pending
         # for enough invocations to trigger deregistration
         mock_aws.download_elb_ip_from_s3.side_effect = [
-            {"IPList": ["10.0.1.5", "10.0.2.8", "10.0.3.12", "10.0.4.7"], "IPCount": 4},  # active
-            {"10.0.2.8": 3, "10.0.3.12": 3, "10.0.4.7": 3},  # pending (count >= INVOCATIONS_BEFORE_DEREGISTRATION=3)
+            {
+                "IPList": ["10.0.1.5", "10.0.2.8", "10.0.3.12", "10.0.4.7"],
+                "IPCount": 4,
+            },  # active
+            {
+                "10.0.2.8": 3,
+                "10.0.3.12": 3,
+                "10.0.4.7": 3,
+            },  # pending (count >= INVOCATIONS_BEFORE_DEREGISTRATION=3)
         ]
 
         # No new IPs to register
@@ -154,7 +167,9 @@ class TestHandlerS3WriteFailure:
 
         # S3 write fails with ClientError
         error_response = {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}
-        mock_aws.write_content_to_s3.side_effect = ClientError(error_response, "PutObject")
+        mock_aws.write_content_to_s3.side_effect = ClientError(
+            error_response, "PutObject"
+        )
 
         with pytest.raises(ClientError) as exc_info:
             lambda_handler({}, mock_context)

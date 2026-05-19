@@ -56,7 +56,9 @@ def get_ip_from_dns() -> Optional[Set[str]]:
     :return: a set of RDS read replica node IP addresses, or None if no IPs found
     """
     ip_from_dns_set = get_rds_replica_ips_from_dns(
-        LambdaEnv.RDS_REPLICA_DNS_LIST, DNS_RECORD_TYPE_A, LambdaEnv.MAX_LOOKUP_PER_INVOCATION
+        LambdaEnv.RDS_REPLICA_DNS_LIST,
+        DNS_RECORD_TYPE_A,
+        LambdaEnv.MAX_LOOKUP_PER_INVOCATION,
     )
     logger.debug(
         f"RDS replica IPs from DNS lookup: {ip_from_dns_set}. Total IP count: {len(ip_from_dns_set)}"
@@ -81,8 +83,12 @@ def get_ip_from_previous_invocation(
     :param aws_service: aws service object
     :return: tuple of (active_ip_dict, pending_ip_dict, active_ip_set)
     """
-    active_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(LambdaEnv.ACTIVE_IP_LIST_KEY)
-    pending_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(LambdaEnv.PENDING_IP_LIST_KEY)
+    active_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(
+        LambdaEnv.ACTIVE_IP_LIST_KEY
+    )
+    pending_ip_dict_from_previous_invocation = aws_service.download_elb_ip_from_s3(
+        LambdaEnv.PENDING_IP_LIST_KEY
+    )
 
     logger.debug(
         f"Active IPs from previous invocation: {active_ip_dict_from_previous_invocation}"
@@ -116,7 +122,9 @@ def should_skip_deregistration(
     """
     if registered_target_count == 0:
         return False
-    deregistration_percent = (pending_deregistration_count / registered_target_count) * 100
+    deregistration_percent = (
+        pending_deregistration_count / registered_target_count
+    ) * 100
     return deregistration_percent > max_deregistration_percent
 
 
@@ -263,8 +271,7 @@ def lambda_handler(event: Any, context: Any) -> None:
     # Get IPs that are pending for registration
     logger.info("\n>>>>Step-4: Get IPs that are pending for registration<<<<")
     pending_registration_ip_set = get_pending_registration_ip_set(
-        ip_from_dns_set,
-        ip_from_target_group_set
+        ip_from_dns_set, ip_from_target_group_set
     )
     logger.debug(
         f"Pending registration IPs for the current invocation - {pending_registration_ip_set}"
@@ -272,12 +279,16 @@ def lambda_handler(event: Any, context: Any) -> None:
 
     # ---- Step 5 -----
     # Get IPs that are pending for deregistration and their invocation count
-    logger.info("\n>>>>Step-5: Get IPs that are pending for deregistration and their invocation count<<<<")
-    invocation_count_per_pending_deregistration_ip = get_invocation_count_per_pending_deregistration_ip(
-        ip_from_dns_set,
-        ip_from_target_group_set,
-        active_ip_set_from_previous_invocation,
-        pending_ip_dict_from_previous_invocation,
+    logger.info(
+        "\n>>>>Step-5: Get IPs that are pending for deregistration and their invocation count<<<<"
+    )
+    invocation_count_per_pending_deregistration_ip = (
+        get_invocation_count_per_pending_deregistration_ip(
+            ip_from_dns_set,
+            ip_from_target_group_set,
+            active_ip_set_from_previous_invocation,
+            pending_ip_dict_from_previous_invocation,
+        )
     )
     pending_deregistration_ip_set = get_pending_deregistration_ip_set(
         invocation_count_per_pending_deregistration_ip,
@@ -286,7 +297,9 @@ def lambda_handler(event: Any, context: Any) -> None:
 
     # ---- Step 6 -----
     # Update IP targets in the NLB target group (registration and deregistration)
-    logger.info("\n>>>>Step-6: Update IP targets in the NLB target group (registration and deregistration)<<<<")
+    logger.info(
+        "\n>>>>Step-6: Update IP targets in the NLB target group (registration and deregistration)<<<<"
+    )
     logger.info(f"SAME VPC is set to: {LambdaEnv.SAME_VPC}")
     is_registered, skipped_deregistration = update_target_group(
         pending_registration_ip_set,
@@ -297,7 +310,9 @@ def lambda_handler(event: Any, context: Any) -> None:
 
     # ---- Step 7 -----
     # Upload the active and pending IP from the current invocation to S3
-    logger.info("\n>>>>Step-7: Upload the active and pending IP from the current invocation to S3<<<<")
+    logger.info(
+        "\n>>>>Step-7: Upload the active and pending IP from the current invocation to S3<<<<"
+    )
     # Only upload the current active IP to S3 when registration API succeeded
     # The next invocation will skip the IPs that have already been registered
     if is_registered:
@@ -306,7 +321,9 @@ def lambda_handler(event: Any, context: Any) -> None:
             json.dumps(active_ip_from_dns_meta_data), LambdaEnv.ACTIVE_IP_LIST_KEY
         )
     else:
-        logger.info(f"No IPs were registered. Skip uploading active IP to S3: {active_ip_from_dns_meta_data}")
+        logger.info(
+            f"No IPs were registered. Skip uploading active IP to S3: {active_ip_from_dns_meta_data}"
+        )
 
     logger.debug(
         f"Upload pending deregistration IP to S3: {invocation_count_per_pending_deregistration_ip}"
@@ -318,7 +335,8 @@ def lambda_handler(event: Any, context: Any) -> None:
 
     # Structured logging summary
     deregistered_count = (
-        0 if skipped_deregistration or not pending_deregistration_ip_set
+        0
+        if skipped_deregistration or not pending_deregistration_ip_set
         else len(pending_deregistration_ip_set)
     )
     log_invocation_summary(

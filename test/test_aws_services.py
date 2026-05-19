@@ -21,8 +21,14 @@ class TestAwsServicesInit:
         # s3_client and elbv2 are both created via boto3.client
         calls = mock_boto3.client.call_args_list
         assert len(calls) == 2
-        assert calls[0] == (("s3",), {"region_name": "us-east-1", "config": RETRY_CONFIG})
-        assert calls[1] == (("elbv2",), {"region_name": "us-east-1", "config": RETRY_CONFIG})
+        assert calls[0] == (
+            ("s3",),
+            {"region_name": "us-east-1", "config": RETRY_CONFIG},
+        )
+        assert calls[1] == (
+            ("elbv2",),
+            {"region_name": "us-east-1", "config": RETRY_CONFIG},
+        )
 
     @patch("aws_services.boto3")
     def test_init_stores_region_and_bucket(self, mock_boto3, env_setup):
@@ -63,7 +69,9 @@ class TestWriteContentToS3:
         svc = AwsServices(region="us-east-1", bucket="test-bucket")
         svc.write_content_to_s3('{"key": "value"}', "state/active_ip.json")
 
-        mock_s3_resource.Object.assert_called_once_with("test-bucket", "state/active_ip.json")
+        mock_s3_resource.Object.assert_called_once_with(
+            "test-bucket", "state/active_ip.json"
+        )
         mock_s3_object.put.assert_called_once_with(Body='{"key": "value"}')
 
     @patch("aws_services.boto3")
@@ -183,8 +191,12 @@ class TestRegisterTarget:
     def test_client_error_returns_false(self, mock_boto3, env_setup):
         """Verify ClientError during registration returns False."""
         mock_elbv2 = MagicMock()
-        error_response = {"Error": {"Code": "TargetGroupNotFound", "Message": "Not found"}}
-        mock_elbv2.register_targets.side_effect = ClientError(error_response, "RegisterTargets")
+        error_response = {
+            "Error": {"Code": "TargetGroupNotFound", "Message": "Not found"}
+        }
+        mock_elbv2.register_targets.side_effect = ClientError(
+            error_response, "RegisterTargets"
+        )
         mock_boto3.client.return_value = mock_elbv2
 
         svc = AwsServices(region="us-east-1", bucket="test-bucket")
@@ -217,7 +229,9 @@ class TestDeregisterTarget:
         """Verify ClientError during deregistration is logged but not raised."""
         mock_elbv2 = MagicMock()
         error_response = {"Error": {"Code": "InvalidTarget", "Message": "Bad target"}}
-        mock_elbv2.deregister_targets.side_effect = ClientError(error_response, "DeregisterTargets")
+        mock_elbv2.deregister_targets.side_effect = ClientError(
+            error_response, "DeregisterTargets"
+        )
         mock_boto3.client.return_value = mock_elbv2
 
         svc = AwsServices(region="us-east-1", bucket="test-bucket")
@@ -267,7 +281,9 @@ class TestGetIpTargetListByTargetGroupArn:
     def test_client_error_returns_empty_list(self, mock_boto3, env_setup):
         """Verify ClientError returns empty list without raising."""
         mock_elbv2 = MagicMock()
-        error_response = {"Error": {"Code": "TargetGroupNotFound", "Message": "Not found"}}
+        error_response = {
+            "Error": {"Code": "TargetGroupNotFound", "Message": "Not found"}
+        }
         mock_elbv2.describe_target_health.side_effect = ClientError(
             error_response, "DescribeTargetHealth"
         )
