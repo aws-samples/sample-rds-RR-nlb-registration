@@ -27,12 +27,12 @@
 
 Note : In your CLI make sure you are in correct folder. 
 
-[Optional] If cloned the repository then create the ZIP file. 
+1. Once repository is cloned ZIP the python code along with dependency. 
 ```bash
 zip -r populate_NLB_TG_with_RDS_RR.zip *.py dns/dnspython-2.6.1.dist-info
 ```
 
-1. Copy the ZIP code to S3 bucket
+2. Copy the ZIP code to S3 bucket
 
 ```bash
 aws s3 cp populate_NLB_TG_with_RDS_RR.zip \
@@ -40,7 +40,7 @@ aws s3 cp populate_NLB_TG_with_RDS_RR.zip \
   --region {region-name}
 ```
 
-2. Deploy the stack
+3. Deploy the stack
 
 ```bash
 aws cloudformation create-stack \
