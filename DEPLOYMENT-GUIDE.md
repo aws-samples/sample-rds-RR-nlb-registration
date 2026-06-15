@@ -98,6 +98,21 @@ The Lambda role needs:
 
 These are automatically configured by the CloudFormation template.
 
+### RDS Read Replica Changed
+
+If a read replica is permanently changed:
+
+1. Remove or Add its DNS name from `RDSReplicaDNSNames` in `deploy-parameters.json`
+2. Update the stack:
+```bash
+aws cloudformation update-stack \
+  --stack-name rds-nlb-registration-stack \
+  --template-body file://cloudformation_NLB_TG_with_RDS_RR.json \
+  --parameters file://deploy-parameters.json \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+  --region {region-name}
+```
+
 ## Cleanup
 
 To remove all resources:
