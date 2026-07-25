@@ -112,6 +112,7 @@ class AwsServices:
         Get a list of IP targets that are registered with the given target group.
         :param tg_arn: ARN of target group
         :return: list of target IP addresses
+        :raises ClientError: if the DescribeTargetHealth API call fails
         """
         registered_ip_list: List[str] = []
         try:
@@ -122,6 +123,7 @@ class AwsServices:
             logger.error(
                 f"Failed to get target list from target group - {tg_arn}. Error: {e}"
             )
+            raise
 
         logger.debug(
             f"ELB IPs that are currently registered with the target group: "
