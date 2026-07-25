@@ -1,38 +1,39 @@
-## What Cloudformation build :
-1. LambdaFunction (AWS::Serverless::Function) = The core of the solution. Runs populate_NLB_TG_with_RDS_RR.lambda_handler on Python 3.13
-2. ScheduledRule (AWS::Events::Rule) = An EventBridge rule that triggers the Lambda every minute.
-3. LambdaInvokePermission (AWS::Lambda::Permission) = Grants EventBridge permission to invoke the Lambda. Without this, the scheduled rule would fire but the invocation would be denied.
-4. LambdaIAMRole (AWS::IAM::Role) = IAM execution role for Lambda to allow read/write state files to the S3 bucket and manage the NLB target group.
+# Deployment Guide
 
-## What needs to be manually created :
-1. You must have NLB and a target group. 
-2. S3 bucket. In this example two S3 bucket are used for clarity. You can optimise by having one and using prefix to distinguish. Purpose of this S3 bucket is to store the lambda code and store the lambda persistance file. Note Lmabda code is used once when deploying. The persistance file are used throughout the lifecycle. 
+## What CloudFormation Creates
 
-**Note:** 
-1. Make sure Block Public Access enabled.
-2. Enable default encryption (SSE-S3 or SSE-KMS)
-3. Enabling versioning is recommended.
+### Always-Created Resources
 
+1. **LambdaFunction** (AWS::Serverless::Function) — Runs `populate_NLB_TG_with_RDS_RR.lambda_handler` on Python 3.13. Resolves RDS replica DNS names and registers IPs to the NLB target group.
+2. **ScheduledRule** (AWS::Events::Rule) — EventBridge rule that triggers the Lambda every minute.
+3. **LambdaInvokePermission** (AWS::Lambda::Permission) — Grants EventBridge permission to invoke the Lambda.
+4. **LambdaIAMRole** (AWS::IAM::Role) — IAM execution role for Lambda with permissions for S3, CloudWatch Logs, and ELBv2 target group management.
 
-## Populate the deploy-parameters.json with actual values
-	1. CodeS3Bucket : Provide S3 bucket name. Used to store lambda code. 
-	2. CodeS3Key (optional) : Specify the S3 path key.
-	3. RDSReplicaDNSNames : DNS Name of RDS read replica. Put the values as comma separated.
-	4. NLBTargetGroupARN : NLB target group ARN
-	5. S3BucketName : Provide S3 bucket name. Used for Lambda persistance. 
-	6. RDSListenerPort : Specifiy the RDS port, default set to 3306
-	7. Region : Specify your region, default us-west-2
+### Conditionally-Created Resources
 
-## Deployment 
+These resources are only created when their corresponding `Create*` flag is set to `true`:
 
-Note : In your CLI make sure you are in correct folder. 
+| Resource | Condition Flag | Description |
+|----------|---------------|-------------|
+| Network Load Balancer | `CreateNLB=true` | NLB of type `network` with configurable scheme and subnets |
+| NLB Target Group | `CreateTargetGroup=true` | IP-based TCP target group for RDS replica IPs |
+| NLB Listener | `CreateNLB=true` AND `CreateTargetGroup=true` | Listener linking the created NLB to the created Target Group |
+| S3 Bucket | `CreateS3Bucket=true` | Bucket for Lambda state persistence (Block Public Access, SSE-S3, versioning enabled) |
+| RDS Read Replica | `CreateRDSReplica=true` | Read replica from specified primary instance |
 
-1. Once repository is cloned ZIP the python code along with dependency. 
+## Prerequisites
+
+### Lambda Code Package
+
+The Lambda deployment package must be uploaded to S3 before deploying the stack. This step requires the CLI.
+
+1. ZIP the Python code along with its dependency:
+
 ```bash
-zip -r populate_NLB_TG_with_RDS_RR.zip *.py dns/dnspython-2.6.1.dist-info
+zip -r populate_NLB_TG_with_RDS_RR.zip *.py dns/ dnspython-2.6.1.dist-info/
 ```
 
-2. Copy the ZIP code to S3 bucket
+2. Copy the ZIP to your S3 bucket:
 
 ```bash
 aws s3 cp populate_NLB_TG_with_RDS_RR.zip \
@@ -40,37 +41,105 @@ aws s3 cp populate_NLB_TG_with_RDS_RR.zip \
   --region {region-name}
 ```
 
-3. Deploy the stack
+### Pre-Existing Resources (when Create flags are false)
+
+When a `Create*` flag is `false` (the default), you must provide the corresponding pre-existing resource identifier:
+
+| If this flag is `false`... | You must provide... |
+|----------------------------|---------------------|
+| `CreateTargetGroup` | `NLBTargetGroupARN` — ARN of your existing NLB Target Group |
+| `CreateS3Bucket` | `S3BucketName` — Name of your existing S3 bucket for state persistence |
+
+**Note:** For S3 buckets you provide, ensure:
+1. Block Public Access is enabled
+2. Default encryption (SSE-S3 or SSE-KMS) is enabled
+3. Versioning is enabled (recommended)
+
+## Conditional Resource Parameters and Interdependencies
+
+### Create Flag Parameters
+
+All flags default to `false`. Set to `true` to have the stack create the resource.
+
+| Parameter | Default | Effect when `true` | Required companion parameters |
+|-----------|---------|-------------------|-------------------------------|
+| `CreateNLB` | `false` | Creates a Network Load Balancer | `NLBSubnetIds`, `VpcId`, `NLBScheme` |
+| `CreateTargetGroup` | `false` | Creates an NLB Target Group | `VpcId` |
+| `CreateS3Bucket` | `false` | Creates an S3 bucket with security defaults | (none) |
+| `CreateRDSReplica` | `false` | Creates an RDS read replica | `SourceDBInstanceIdentifier`, `DBInstanceClass` |
+
+### Interdependencies
+
+- **NLB + Target Group**: When both `CreateNLB=true` and `CreateTargetGroup=true`, an NLB Listener is automatically created to link them.
+- **Target Group ARN resolution**: The Lambda and IAM policy automatically use the created Target Group ARN (when `CreateTargetGroup=true`) or the `NLBTargetGroupARN` parameter value (when `false`).
+- **S3 Bucket resolution**: The Lambda and IAM policy automatically use the created bucket name (when `CreateS3Bucket=true`) or the `S3BucketName` parameter value (when `false`).
+- **VpcId**: Required when either `CreateNLB=true` or `CreateTargetGroup=true`.
+
+## Deployment
+
+### Option 1: AWS Console (Primary)
+
+This is the recommended approach. The template includes `AWS::CloudFormation::Interface` metadata that organizes parameters into logical groups with descriptive labels.
+
+1. Open the [AWS CloudFormation Console](https://console.aws.amazon.com/cloudformation/)
+2. Click **Create stack** → **With new resources (standard)**
+3. Select **Upload a template file** and upload `infrastructure/cloudformation_NLB_TG_with_RDS_RR.json`
+4. Fill in the parameter form:
+   - **Conditional Resource Flags** — Set any `Create*` flags to `true` for resources you want the stack to create
+   - **NLB Configuration** — Fill in subnet IDs, VPC, and scheme if `CreateNLB=true`
+   - **Target Group Configuration** — Provide existing Target Group ARN if `CreateTargetGroup=false`
+   - **S3 Configuration** — Provide existing bucket name if `CreateS3Bucket=false`
+   - **RDS Configuration** — Provide source DB identifier if `CreateRDSReplica=true`; always provide `RDSReplicaDNSNames`
+   - **Lambda Configuration** — Provide `CodeS3Bucket` (the bucket where you uploaded the ZIP)
+5. Check **I acknowledge that AWS CloudFormation might create IAM resources**
+6. Click **Create stack**
+
+### Option 2: AWS CLI (Alternative)
+
+Deploy using inline `--parameters` overrides. No parameter file is needed.
 
 ```bash
 aws cloudformation create-stack \
-  --template-file template_popluate_NLB_TGW_with_RDS_RR.json \
   --stack-name rds-nlb-registration-stack \
-  --parameter-overrides file://deploy-parameters.json \
+  --template-body file://infrastructure/cloudformation_NLB_TG_with_RDS_RR.json \
+  --parameters \
+    ParameterKey=CodeS3Bucket,ParameterValue={your-code-bucket} \
+    ParameterKey=RDSReplicaDNSNames,ParameterValue='{replica1.abc123.us-east-1.rds.amazonaws.com,replica2.abc123.us-east-1.rds.amazonaws.com}' \
+    ParameterKey=NLBTargetGroupARN,ParameterValue={your-target-group-arn} \
+    ParameterKey=S3BucketName,ParameterValue={your-state-bucket} \
   --capabilities CAPABILITY_IAM \
   --region {region-name}
-```  
+```
 
 ## Verification
 
 ### Check Lambda Function
 
 ```bash
-aws lambda get-function --function-name RDS-NLB-Registration --region {region-name}
+aws lambda get-function --function-name {stack-name}-RDS-NLB-Registration --region {region-name}
 ```
 
 ### Check Registered Targets
 
 ```bash
 aws elbv2 describe-target-health \
-  --target-group-arn YOUR-TARGET-GROUP-ARN \
+  --target-group-arn {your-target-group-arn} \
   --region {region-name}
 ```
 
 ### View Logs
 
 ```bash
-aws logs tail /aws/lambda/RDS-NLB-Registration --follow --region {region-name}
+aws logs tail /aws/lambda/{stack-name}-RDS-NLB-Registration --follow --region {region-name}
+```
+
+### Check Stack Outputs
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name rds-nlb-registration-stack \
+  --query 'Stacks[0].Outputs' \
+  --region {region-name}
 ```
 
 ## Troubleshooting
@@ -79,14 +148,15 @@ aws logs tail /aws/lambda/RDS-NLB-Registration --follow --region {region-name}
 
 Check CloudWatch logs:
 ```bash
-aws logs tail /aws/lambda/RDS-NLB-Registration --since 5m --region {region-name}
+aws logs tail /aws/lambda/{stack-name}-RDS-NLB-Registration --since 5m --region {region-name}
 ```
 
 Common issues:
-- Incorrect RDS DNS names
-- Wrong target group ARN
+- Incorrect RDS DNS names in `RDSReplicaDNSNames`
+- Wrong target group ARN (when using pre-existing TG)
 - IAM permission issues
-- S3 bucket doesn't exist
+- S3 bucket doesn't exist (when using pre-existing bucket)
+- Database security group not allowing traffic on TCP 3306 from NLB.
 
 ### Permission Errors
 
@@ -96,29 +166,22 @@ The Lambda role needs:
 - `elasticloadbalancing:DescribeTargetHealth`
 - `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`
 
-These are automatically configured by the CloudFormation template.
+These are automatically configured by the CloudFormation template and scoped to the effective target group and bucket (whether created by the stack or pre-existing).
 
-### RDS Read Replica Changed
+### Stack Creation Fails with Parameter Errors
 
-If a read replica is permanently changed:
-
-1. Remove or Add its DNS name from `RDSReplicaDNSNames` in `deploy-parameters.json`
-2. Update the stack:
-```bash
-aws cloudformation update-stack \
-  --stack-name rds-nlb-registration-stack \
-  --template-body file://cloudformation_NLB_TG_with_RDS_RR.json \
-  --parameters file://deploy-parameters.json \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-  --region {region-name}
-```
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `NLBTargetGroupARN` required | `CreateTargetGroup=false` but no ARN provided | Provide `NLBTargetGroupARN` or set `CreateTargetGroup=true` |
+| `S3BucketName` required | `CreateS3Bucket=false` but no bucket name provided | Provide `S3BucketName` or set `CreateS3Bucket=true` |
+| NLB subnet error | `CreateNLB=true` but `NLBSubnetIds` empty | Provide valid subnet IDs |
+| VPC ID invalid | `CreateNLB=true` or `CreateTargetGroup=true` but `VpcId` missing | Provide valid VPC ID |
 
 ## Cleanup
 
-To remove all resources:
+To remove all resources created by the stack:
 
-```bash
-aws cloudformation delete-stack \
-  --stack-name rds-nlb-registration \
-  --region us-west-2
-```
+1. Open the [AWS CloudFormation Console](https://console.aws.amazon.com/cloudformation/)
+2. Click **Select stack** -> **Delete**
+
+Note: Delete the state S3 bucket by deleting the content and empty the bucket.

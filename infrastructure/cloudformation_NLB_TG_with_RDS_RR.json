@@ -1,0 +1,835 @@
+{
+  "Transform": "AWS::Serverless-2016-10-31",
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Template to Register RDS Read Replica IPs as targets for Network Load Balancer",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": { "default": "Conditional Resource Flags" },
+          "Parameters": [
+            "CreateNLB",
+            "CreateTargetGroup",
+            "CreateS3Bucket",
+            "CreateRDSReplica"
+          ]
+        },
+        {
+          "Label": { "default": "NLB Configuration" },
+          "Parameters": [
+            "NLBSubnetIds",
+            "VpcId",
+            "NLBScheme",
+            "NLBListenerPort",
+            "NLBListenerProtocol"
+          ]
+        },
+        {
+          "Label": { "default": "Target Group Configuration" },
+          "Parameters": [
+            "NLBTargetGroupARN"
+          ]
+        },
+        {
+          "Label": { "default": "S3 Configuration" },
+          "Parameters": [
+            "S3BucketName"
+          ]
+        },
+        {
+          "Label": { "default": "RDS Configuration" },
+          "Parameters": [
+            "SourceDBInstanceIdentifier",
+            "DBInstanceClass",
+            "RDSReplicaDNSNames",
+            "RDSListenerPort"
+          ]
+        },
+        {
+          "Label": { "default": "Lambda Configuration" },
+          "Parameters": [
+            "CodeS3Bucket",
+            "CodeS3Key",
+            "StatePrefix",
+            "MAXDNSLookupPerInvocation",
+            "InvocationBeforeDeregistration",
+            "MaxDeregistrationPercent",
+            "LogRetentionDays"
+          ]
+        },
+        {
+          "Label": { "default": "Tagging" },
+          "Parameters": [
+            "Environment",
+            "Owner"
+          ]
+        },
+        {
+          "Label": { "default": "Region" },
+          "Parameters": [
+            "Region"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "CreateNLB": {
+          "default": "Create Network Load Balancer"
+        },
+        "CreateTargetGroup": {
+          "default": "Create NLB Target Group"
+        },
+        "CreateS3Bucket": {
+          "default": "Create S3 Bucket for State"
+        },
+        "CreateRDSReplica": {
+          "default": "Create RDS Read Replica"
+        },
+        "NLBSubnetIds": {
+          "default": "NLB Subnet IDs (Required when CreateNLB = true)"
+        },
+        "VpcId": {
+          "default": "VPC ID (Required when CreateNLB = true or CreateTargetGroup = true)"
+        },
+        "NLBScheme": {
+          "default": "NLB Scheme (Required when CreateNLB = true)"
+        },
+        "NLBListenerPort": {
+          "default": "NLB Listener Port (Required when CreateNLB = true)"
+        },
+        "NLBListenerProtocol": {
+          "default": "NLB Listener Protocol (Required when CreateNLB = true)"
+        },
+        "NLBTargetGroupARN": {
+          "default": "Existing Target Group ARN (Required when CreateTargetGroup = false)"
+        },
+        "S3BucketName": {
+          "default": "State Persistence S3 Bucket Name (Required when CreateS3Bucket = false)"
+        },
+        "SourceDBInstanceIdentifier": {
+          "default": "Source DB Instance Identifier (Required when CreateRDSReplica = true)"
+        },
+        "DBInstanceClass": {
+          "default": "DB Instance Class"
+        },
+        "RDSReplicaDNSNames": {
+          "default": "Existing RDS Replica DNS Names (Required when CreateRDSReplica = false)"
+        },
+        "RDSListenerPort": {
+          "default": "RDS Listener Port"
+        },
+        "CodeS3Bucket": {
+          "default": "Lambda Code S3 Bucket (where the ZIP is uploaded)"
+        },
+        "CodeS3Key": {
+          "default": "Lambda Code S3 Key"
+        },
+        "StatePrefix": {
+          "default": "S3 State Prefix"
+        },
+        "MAXDNSLookupPerInvocation": {
+          "default": "Max DNS Lookups Per Invocation"
+        },
+        "InvocationBeforeDeregistration": {
+          "default": "Invocations Before Deregistration"
+        },
+        "MaxDeregistrationPercent": {
+          "default": "Max Deregistration Percent"
+        },
+        "LogRetentionDays": {
+          "default": "CloudWatch Log Retention (days)"
+        },
+        "Environment": {
+          "default": "Environment Tag"
+        },
+        "Owner": {
+          "default": "Owner Tag"
+        },
+        "Region": {
+          "default": "AWS Region"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "CreateNLB": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": ["true", "false"],
+      "Description": "Set to true to create a new Network Load Balancer. When true, NLBSubnetIds, VpcId, and NLBScheme are required."
+    },
+    "CreateTargetGroup": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": ["true", "false"],
+      "Description": "Set to true to create a new NLB Target Group. When true, VpcId is required. When false, NLBTargetGroupARN is required."
+    },
+    "CreateS3Bucket": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": ["true", "false"],
+      "Description": "Set to true to create a new S3 bucket for Lambda state persistence. When false, S3BucketName is required."
+    },
+    "CreateRDSReplica": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": ["true", "false"],
+      "Description": "Set to true to create an RDS read replica. When true, SourceDBInstanceIdentifier is required."
+    },
+    "NLBSubnetIds": {
+      "Type": "CommaDelimitedList",
+      "Description": "Required when CreateNLB is true. Comma-separated list of subnet IDs to assign to the Network Load Balancer."
+    },
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "Required when CreateNLB is true or CreateTargetGroup is true. VPC ID for networking resources."
+    },
+    "NLBScheme": {
+      "Type": "String",
+      "Default": "internal",
+      "AllowedValues": ["internet-facing", "internal"],
+      "Description": "Required when CreateNLB is true. Specifies whether the NLB is internet-facing or internal."
+    },
+    "NLBListenerPort": {
+      "Type": "Number",
+      "Default": 3306,
+      "Description": "Required when CreateNLB is true. Port on which the NLB listener accepts traffic."
+    },
+    "NLBListenerProtocol": {
+      "Type": "String",
+      "Default": "TCP",
+      "AllowedValues": ["TCP", "TLS", "UDP", "TCP_UDP"],
+      "Description": "Required when CreateNLB is true. Protocol for the NLB listener."
+    },
+    "SourceDBInstanceIdentifier": {
+      "Type": "String",
+      "Description": "Required when CreateRDSReplica is true. Identifier of the primary RDS instance to replicate from."
+    },
+    "DBInstanceClass": {
+      "Type": "String",
+      "Default": "db.r5.large",
+      "AllowedValues": ["db.t3.medium", "db.r5.large", "db.r5.xlarge", "db.r6g.large", "db.r6g.xlarge"],
+      "Description": "Required when CreateRDSReplica is true. Instance class for the RDS read replica."
+    },
+    "CodeS3Bucket": {
+      "Type": "String",
+      "Description": "S3 bucket name where the Lambda deployment package (populate_NLB_TG_with_RDS_RR.zip) is stored."
+    },
+    "CodeS3Key": {
+      "Type": "String",
+      "Default": "lambda-code/populate_NLB_TG_with_RDS_RR.zip",
+      "Description": "S3 key (path) to the Lambda deployment package."
+    },
+    "RDSReplicaDNSNames": {
+      "Type": "String",
+      "Description": "Required when CreateRDSReplica is false. Comma-separated DNS names of your existing RDS read replicas. Ignored when CreateRDSReplica is true (the created replica endpoint is used automatically)."
+    },
+    "NLBTargetGroupARN": {
+      "Type": "String",
+      "Description": "Required when CreateTargetGroup is false. ARN of your existing NLB Target Group."
+    },
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "Required when CreateS3Bucket is false. Name of your existing S3 bucket for Lambda state persistence."
+    },
+    "RDSListenerPort": {
+      "Type": "Number",
+      "Default": 3306,
+      "Description": "Traffic listener port of your RDS instances (3306 for MySQL, 5432 for PostgreSQL)."
+    },
+    "StatePrefix": {
+      "Type": "String",
+      "Default": "rds-cluster-read-replicas",
+      "Description": "S3 key prefix for state files (e.g., rds-cluster-read-replicas)."
+    },
+    "MAXDNSLookupPerInvocation": {
+      "Type": "Number",
+      "Default": 5,
+      "Description": "Maximum DNS lookups this function can perform per invocation per DNS name."
+    },
+    "InvocationBeforeDeregistration": {
+      "Type": "Number",
+      "Default": 3,
+      "Description": "Number of consecutive invocations with a missing IP before it is deregistered from the target group."
+    },
+    "MaxDeregistrationPercent": {
+      "Type": "Number",
+      "Default": 50,
+      "Description": "Maximum percentage of registered targets that can be deregistered in a single invocation (safety threshold)."
+    },
+    "LogRetentionDays": {
+      "Type": "Number",
+      "Default": 1,
+      "AllowedValues": [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      "Description": "Number of days to retain Lambda CloudWatch logs. Default is 1 day."
+    },
+    "Environment": {
+      "Type": "String",
+      "Default": "production",
+      "Description": "Deployment environment name for resource tagging."
+    },
+    "Owner": {
+      "Type": "String",
+      "Default": "platform-team",
+      "Description": "Team or individual owning this stack for resource tagging."
+    },
+    "Region": {
+      "Type": "String",
+      "Default": "us-west-2",
+      "Description": "AWS region where the Lambda function is created."
+    }
+  },
+  "Conditions": {
+    "CreateNLBCondition": {
+      "Fn::Equals": [
+        {
+          "Ref": "CreateNLB"
+        },
+        "true"
+      ]
+    },
+    "CreateTargetGroupCondition": {
+      "Fn::Equals": [
+        {
+          "Ref": "CreateTargetGroup"
+        },
+        "true"
+      ]
+    },
+    "CreateS3BucketCondition": {
+      "Fn::Equals": [
+        {
+          "Ref": "CreateS3Bucket"
+        },
+        "true"
+      ]
+    },
+    "CreateRDSReplicaCondition": {
+      "Fn::Equals": [
+        {
+          "Ref": "CreateRDSReplica"
+        },
+        "true"
+      ]
+    },
+    "CreateNLBAndTargetGroupCondition": {
+      "Fn::And": [
+        {
+          "Condition": "CreateNLBCondition"
+        },
+        {
+          "Condition": "CreateTargetGroupCondition"
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "NetworkLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Condition": "CreateNLBCondition",
+      "Properties": {
+        "Type": "network",
+        "Scheme": {
+          "Ref": "NLBScheme"
+        },
+        "Subnets": {
+          "Ref": "NLBSubnetIds"
+        },
+        "SecurityGroups": [
+          { "Ref": "NLBSecurityGroup" }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "NLBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Condition": "CreateNLBCondition",
+      "Properties": {
+        "GroupDescription": "Security group for RDS-NLB-Registration Network Load Balancer",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "NLBTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Condition": "CreateTargetGroupCondition",
+      "Properties": {
+        "TargetType": "ip",
+        "Protocol": "TCP",
+        "Port": {
+          "Ref": "RDSListenerPort"
+        },
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "HealthCheckProtocol": "TCP",
+        "HealthCheckPort": {
+          "Fn::Sub": "${RDSListenerPort}"
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "NLBListener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Condition": "CreateNLBAndTargetGroupCondition",
+      "Properties": {
+        "LoadBalancerArn": {
+          "Ref": "NetworkLoadBalancer"
+        },
+        "Port": {
+          "Ref": "NLBListenerPort"
+        },
+        "Protocol": {
+          "Ref": "NLBListenerProtocol"
+        },
+        "DefaultActions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "NLBTargetGroup"
+            }
+          }
+        ]
+      }
+    },
+    "LambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-RDS-NLB-Registration"
+        },
+        "RetentionInDays": {
+          "Ref": "LogRetentionDays"
+        }
+      }
+    },
+    "LambdaFunction": {
+      "Type": "AWS::Serverless::Function",
+      "DependsOn": "LambdaLogGroup",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-RDS-NLB-Registration"
+        },
+        "CodeUri": {
+          "Bucket": {
+            "Ref": "CodeS3Bucket"
+          },
+          "Key": {
+            "Ref": "CodeS3Key"
+          }
+        },
+        "Description": "Register RDS Read Replica IPs to Network Load Balancer",
+        "Handler": "populate_NLB_TG_with_RDS_RR.lambda_handler",
+        "Timeout": 60,
+        "ReservedConcurrentExecutions": 1,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaIAMRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.13",
+        "Environment": {
+          "Variables": {
+            "RDS_REPLICA_DNS_NAMES": {
+              "Fn::If": ["CreateRDSReplicaCondition", {"Fn::GetAtt": ["RDSReadReplica", "Endpoint.Address"]}, {"Ref": "RDSReplicaDNSNames"}]
+            },
+            "RDS_LISTENER_PORT": {
+              "Ref": "RDSListenerPort"
+            },
+            "STATE_PREFIX": {
+              "Ref": "StatePrefix"
+            },
+            "NLB_TG_ARN": {
+              "Fn::If": ["CreateTargetGroupCondition", {"Ref": "NLBTargetGroup"}, {"Ref": "NLBTargetGroupARN"}]
+            },
+            "S3_BUCKET": {
+              "Fn::If": ["CreateS3BucketCondition", {"Ref": "StateBucket"}, {"Ref": "S3BucketName"}]
+            },
+            "MAX_LOOKUP_PER_INVOCATION": {
+              "Ref": "MAXDNSLookupPerInvocation"
+            },
+            "INVOCATIONS_BEFORE_DEREGISTRATION": {
+              "Ref": "InvocationBeforeDeregistration"
+            },
+            "MAX_DEREGISTRATION_PERCENT": {
+              "Ref": "MaxDeregistrationPercent"
+            }
+          }
+        },
+        "Tags": {
+          "Application": "RDS-NLB-Registration",
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "Owner": {
+            "Ref": "Owner"
+          }
+        }
+      }
+    },
+    "ScheduledRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "ScheduledRule",
+        "ScheduleExpression": "rate(1 minute)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::GetAtt": [
+                "LambdaFunction",
+                "Arn"
+              ]
+            },
+            "Id": "TargetFunctionV1"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      },
+      "DependsOn": [
+        "LambdaFunction"
+      ]
+    },
+    "LambdaInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "LambdaFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "events.amazonaws.com",
+        "Action": "lambda:InvokeFunction",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "ScheduledRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "LambdaIAMRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          {
+            "Ref": "LambdaRDSReadReplicaPolicy"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "StateBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Condition": "CreateS3BucketCondition",
+      "Properties": {
+        "BucketNamespace": "account-regional",
+        "BucketName": {
+          "Fn::Sub": "${AWS::StackName}-state-${AWS::AccountId}-${AWS::Region}-an"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "RDSReadReplica": {
+      "Type": "AWS::RDS::DBInstance",
+      "Condition": "CreateRDSReplicaCondition",
+      "Properties": {
+        "SourceDBInstanceIdentifier": {
+          "Ref": "SourceDBInstanceIdentifier"
+        },
+        "DBInstanceClass": {
+          "Ref": "DBInstanceClass"
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "RDS-NLB-Registration"
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": {
+              "Ref": "Owner"
+            }
+          }
+        ]
+      }
+    },
+    "LambdaRDSReadReplicaPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Description": "Policy for Lambda to manage RDS read replica NLB registration",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "LambdaLogging",
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-RDS-NLB-Registration:*"
+                }
+              ]
+            },
+            {
+              "Sid": "S3",
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                {
+                  "Fn::If": [
+                    "CreateS3BucketCondition",
+                    { "Fn::Sub": ["arn:aws:s3:::${Bucket}", { "Bucket": { "Ref": "StateBucket" } }] },
+                    { "Fn::Sub": "arn:aws:s3:::${S3BucketName}" }
+                  ]
+                },
+                {
+                  "Fn::If": [
+                    "CreateS3BucketCondition",
+                    { "Fn::Sub": ["arn:aws:s3:::${Bucket}/*", { "Bucket": { "Ref": "StateBucket" } }] },
+                    { "Fn::Sub": "arn:aws:s3:::${S3BucketName}/*" }
+                  ]
+                }
+              ]
+            },
+            {
+              "Sid": "ELBDescribe",
+              "Effect": "Allow",
+              "Action": [
+                "elasticloadbalancing:DescribeTargetHealth"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "ELBTargetGroup",
+              "Effect": "Allow",
+              "Action": [
+                "elasticloadbalancing:RegisterTargets",
+                "elasticloadbalancing:DeregisterTargets"
+              ],
+              "Resource": {
+                "Fn::If": [
+                  "CreateTargetGroupCondition",
+                  { "Ref": "NLBTargetGroup" },
+                  { "Ref": "NLBTargetGroupARN" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "NLBArn": {
+      "Description": "ARN of the conditionally created Network Load Balancer",
+      "Condition": "CreateNLBCondition",
+      "Value": {
+        "Ref": "NetworkLoadBalancer"
+      }
+    },
+    "NLBDNSName": {
+      "Description": "DNS name of the conditionally created Network Load Balancer",
+      "Condition": "CreateNLBCondition",
+      "Value": {
+        "Fn::GetAtt": ["NetworkLoadBalancer", "DNSName"]
+      }
+    },
+    "TargetGroupArn": {
+      "Description": "ARN of the conditionally created NLB Target Group",
+      "Condition": "CreateTargetGroupCondition",
+      "Value": {
+        "Ref": "NLBTargetGroup"
+      }
+    },
+    "StateBucketName": {
+      "Description": "Name of the conditionally created S3 bucket for Lambda state persistence",
+      "Condition": "CreateS3BucketCondition",
+      "Value": {
+        "Ref": "StateBucket"
+      }
+    },
+    "RDSReplicaEndpoint": {
+      "Description": "Endpoint address of the conditionally created RDS read replica",
+      "Condition": "CreateRDSReplicaCondition",
+      "Value": {
+        "Fn::GetAtt": ["RDSReadReplica", "Endpoint.Address"]
+      }
+    },
+    "LambdaFunctionArn": {
+      "Description": "ARN of the Lambda function that registers RDS replica IPs with the NLB target group",
+      "Value": {
+        "Fn::GetAtt": ["LambdaFunction", "Arn"]
+      }
+    },
+    "EffectiveTargetGroupArn": {
+      "Description": "The resolved Target Group ARN used by the Lambda function, either from the created resource or the user-provided parameter",
+      "Value": {
+        "Fn::If": ["CreateTargetGroupCondition", {"Ref": "NLBTargetGroup"}, {"Ref": "NLBTargetGroupARN"}]
+      }
+    },
+    "EffectiveBucketName": {
+      "Description": "The resolved S3 bucket name used by the Lambda function, either from the created resource or the user-provided parameter",
+      "Value": {
+        "Fn::If": ["CreateS3BucketCondition", {"Ref": "StateBucket"}, {"Ref": "S3BucketName"}]
+      }
+    }
+  }
+}
